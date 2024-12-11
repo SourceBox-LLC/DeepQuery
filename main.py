@@ -4,6 +4,8 @@ import json
 import logging
 import os
 from dotenv import load_dotenv
+import random
+import time
 
 # Load environment variables
 load_dotenv()
@@ -86,14 +88,95 @@ def logout():
 
 # Function to display the main page
 def main_page():
-    st.title("Main Page")
-    st.write("Welcome to the main page!")
-    st.write(f"Access Token: {st.session_state.access_token}")
-    st.sidebar.title("Navigation")
+    logging.info(f"Access Token: {st.session_state.access_token}")
+    st.sidebar.title("Options")
+
+    # select box for conversation history
+    options = ["New Conversation", "Option 2", "Option 3"]
+    selected_option = st.sidebar.selectbox("Conversation History", options)
+    st.sidebar.write(f"You selected: {selected_option}")
+
+    # File upload for context in the sidebar
+    uploaded_file = st.sidebar.file_uploader("Upload a file for context", type=["txt", "pdf", "docx"])
+    if uploaded_file is not None:
+        # Process the uploaded file
+        file_content = uploaded_file.read()
+        # You can add logic here to parse the file and extract useful information
+        st.session_state.file_content = file_content
+        st.sidebar.success("File uploaded successfully!")
+
+    # Select box in the sidebar for packs
+    options = ["No Pack", "Option 2", "Option 3"]
+    selected_option = st.sidebar.selectbox("Connect to a Pack", options)
+    st.sidebar.write(f"You selected: {selected_option}")
+
+    # Activate voice toggle
+    voice_toggle = st.sidebar.toggle("Activate Voice", value=False)
+
+    # Microphone input under the toggle button
+    if voice_toggle:
+        audio_input = st.sidebar.audio_input("Record a voice message")
+        if audio_input:
+            st.sidebar.audio(audio_input)
+    
+
+    # Logout button in the sidebar
     st.sidebar.button("Logout", on_click=logout)
+
+    # Streamed response emulator
+    def response_generator():
+        response = random.choice(
+            [
+                "Hello there! How can I assist you today?",
+                "Hi, human! Is there anything I can help you with?",
+                "Do you need help?",
+            ]
+        )
+        for word in response.split():
+            yield word + " "
+            time.sleep(0.05)
+
+    st.title("DeepQuery")
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Accept user input
+    if prompt := st.chat_input("What is up?"):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        # Display user message in chat message container
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Display assistant response in chat message container
+        with st.chat_message("assistant"):
+            response = st.write_stream(response_generator())
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
 # Display the appropriate page based on login state
 if st.session_state.logged_in:
     main_page()
 else:
     login_page()
+
+
+
+
+
+#---Helper Functions---
+
+def get_user_info(access_token):
+    pass
+
+def get_user_data(access_token):
+    pass
+
+
