@@ -137,6 +137,7 @@ def main_page():
             time.sleep(0.05)
 
     st.title("DeepQuery")
+    st.subheader("Dive Deeper")
 
     # Initialize chat history
     if "messages" not in st.session_state:
