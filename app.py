@@ -91,6 +91,11 @@ def main_page():
     logging.info(f"Access Token: {st.session_state.access_token}")
     st.sidebar.title("Options")
 
+    # select box for chatbot model
+    options = ["ChatGPT", "Option 2", "Option 3"]
+    selected_option = st.sidebar.selectbox("Chat Model", options)
+    st.sidebar.write(f"You selected: {selected_option}")
+
     # select box for conversation history
     options = ["New Conversation", "Option 2", "Option 3"]
     selected_option = st.sidebar.selectbox("Conversation History", options)
@@ -125,19 +130,29 @@ def main_page():
 
     # Streamed response emulator
     def response_generator():
-        response = random.choice(
-            [
-                "Hello there! How can I assist you today?",
-                "Hi, human! Is there anything I can help you with?",
-                "Do you need help?",
-            ]
-        )
+        response = random.choice([
+            "Hello there! How can I assist you today?",
+            "Hi, human! Is there anything I can help you with?",
+            "Do you need help?",
+            "Greetings! What can I do for you?",
+            "Welcome! How may I be of assistance?",
+            "Hey! I'm here to help. What's on your mind?",
+            "Good to see you! What would you like to explore today?",
+            "Hi there! Ready to dive into your questions!",
+            "Hello! I'm your AI assistant. What would you like to know?",
+            "Welcome aboard! What shall we work on today?",
+            "Greetings! I'm here to help you find answers.",
+            "Hello! Looking forward to our conversation.",
+            "Hi! Let's tackle your questions together.",
+            "Welcome! What topics would you like to explore?",
+            "Hey there! Ready to assist with whatever you need."
+        ])
         for word in response.split():
             yield word + " "
             time.sleep(0.05)
 
     st.title("DeepQuery")
-    st.subheader("Dive Deeper")
+    st.subheader("Dive Deeper!")
 
     # Initialize chat history
     if "messages" not in st.session_state:
