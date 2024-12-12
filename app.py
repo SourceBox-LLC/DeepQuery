@@ -13,13 +13,6 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-model_options = {
-    "Cohere":"cohere.command-r-plus-v1:0",
-    "Claude":"anthropic.claude-3-5-sonnet-20240620-v1:0"
-}
-    
-
-
 # Initialize session state for login
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
