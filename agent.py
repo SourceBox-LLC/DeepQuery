@@ -12,14 +12,14 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def initialize_agent():
+def initialize_agent(model_id):
     """Initialize and return a ReAct agent with Bedrock and Tavily search capabilities."""
     load_dotenv()
     memory = MemorySaver()
     
     logger.info("Initializing Bedrock model...")
     model = ChatBedrock(
-        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        model=model_id,
         beta_use_converse_api=True,
         streaming=True
     )

@@ -12,6 +12,14 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+model_options = {
+    "Cohere":"cohere.command-r-plus-v1:0",
+    "Claude":"anthropic.claude-3-5-sonnet-20240620-v1:0"
+}
+    
+
+
 # Initialize session state for login
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -91,7 +99,7 @@ def main_page():
     st.sidebar.title("Options")
 
     # Select box for chatbot model
-    model_options = ["ChatGPT", "AWS Bedrock Claude", "Option 3"]
+    model_options = ["Claude", "Cohere"]
     selected_model = st.sidebar.selectbox("Chat Model", model_options)
     st.sidebar.write(f"You selected: {selected_model}")
 
@@ -123,7 +131,13 @@ def main_page():
     st.sidebar.button("Logout", on_click=logout)
 
     # Initialize the agent
-    agent_executor = initialize_agent()
+    if selected_model in model_options:
+        if selected_model == "Claude":  
+            model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        else:
+            model_id = "cohere.command-r-plus-v1:0"
+
+        agent_executor = initialize_agent(model_id=model_id)
 
     # Initialize chat history
     if "messages" not in st.session_state:
