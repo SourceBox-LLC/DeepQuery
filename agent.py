@@ -1,3 +1,4 @@
+# agent.py
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage
 from langchain_community.tools.tavily_search import TavilySearchResults
@@ -6,7 +7,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 import os
 import logging
-
+import json
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,32 +37,32 @@ def initialize_agent():
 
 def query_agent(agent_executor, query):
     """
-    Query the agent with a specific question and stream the response.
+    Query the agent with a specific question and return the streamed response.
     """
     logger.info(f"Sending query: {query}")
     config = {"configurable": {"thread_id": "abc123"}}
     
-    # Use the stream method to get chunks of the response
-    for chunk in agent_executor.stream(
-        {"messages": [HumanMessage(content=query)]},
-        config
-    ):
-        # Check if we have messages in the chunk
-        if "agent" in chunk and "messages" in chunk["agent"]:
-            for message in chunk["agent"]["messages"]:
-                if hasattr(message, 'content') and message.content:
-                    print(message.content, end="", flush=True)
-
-# Example usage
-if __name__ == "__main__":
+    response_content = ""  # To accumulate the response content
+    
     try:
-        logger.info("Starting agent initialization...")
-        agent = initialize_agent()
-        logger.info("Agent initialized successfully.")
-        
-        print("\nAsking about Bitcoin price...\n")
-        query_agent(agent, "what was the price of bitcoin last week?")
-        print("\n")  # Add a newline at the end
-        
+        for chunk in agent_executor.stream(
+            {"messages": [HumanMessage(content=query)]},
+            config
+        ):
+            # Check if we have messages in the chunk
+            if "agent" in chunk and "messages" in chunk["agent"]:
+                for message in chunk["agent"]["messages"]:
+                    if hasattr(message, 'content') and message.content:
+                        # Check if the content is a string, if not, convert it to a string
+                        if isinstance(message.content, str):
+                            response_content += message.content
+                            yield message.content  # Yield each chunk for streaming
+                        else:
+                            # Convert non-string content to a readable string
+                            formatted_content = json.dumps(message.content, indent=2) if isinstance(message.content, (dict, list)) else str(message.content)
+                            response_content += formatted_content
+                            yield formatted_content  # Yield the formatted content
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}", exc_info=True)
+        logger.error(f"Error during agent query: {e}", exc_info=True)
+        yield f"An error occurred: {e}"
+

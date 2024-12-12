@@ -4,8 +4,7 @@ import json
 import logging
 import os
 from dotenv import load_dotenv
-import random
-import time
+from agent import initialize_agent, query_agent
 
 # Load environment variables
 load_dotenv()
@@ -91,72 +90,47 @@ def main_page():
     logging.info(f"Access Token: {st.session_state.access_token}")
     st.sidebar.title("Options")
 
-    # select box for chatbot model
-    options = ["ChatGPT", "Option 2", "Option 3"]
-    selected_option = st.sidebar.selectbox("Chat Model", options)
-    st.sidebar.write(f"You selected: {selected_option}")
+    # Select box for chatbot model
+    model_options = ["ChatGPT", "AWS Bedrock Claude", "Option 3"]
+    selected_model = st.sidebar.selectbox("Chat Model", model_options)
+    st.sidebar.write(f"You selected: {selected_model}")
 
-    # select box for conversation history
-    options = ["New Conversation", "Option 2", "Option 3"]
-    selected_option = st.sidebar.selectbox("Conversation History", options)
-    st.sidebar.write(f"You selected: {selected_option}")
+    # Select box for conversation history
+    history_options = ["New Conversation", "History 1", "History 2"]
+    selected_history = st.sidebar.selectbox("Conversation History", history_options)
+    st.sidebar.write(f"You selected: {selected_history}")
 
     # File upload for context in the sidebar
     uploaded_file = st.sidebar.file_uploader("Upload a file for context", type=["txt", "pdf", "docx"])
     if uploaded_file is not None:
-        # Process the uploaded file
         file_content = uploaded_file.read()
-        # You can add logic here to parse the file and extract useful information
         st.session_state.file_content = file_content
         st.sidebar.success("File uploaded successfully!")
 
     # Select box in the sidebar for packs
-    options = ["No Pack", "Option 2", "Option 3"]
-    selected_option = st.sidebar.selectbox("Connect to a Pack", options)
-    st.sidebar.write(f"You selected: {selected_option}")
+    pack_options = ["No Pack", "Pack 1", "Pack 2"]
+    selected_pack = st.sidebar.selectbox("Connect to a Pack", pack_options)
+    st.sidebar.write(f"You selected: {selected_pack}")
 
     # Activate voice toggle
     voice_toggle = st.sidebar.toggle("Activate Voice", value=False)
-
-    # Microphone input under the toggle button
     if voice_toggle:
         audio_input = st.sidebar.audio_input("Record a voice message")
         if audio_input:
             st.sidebar.audio(audio_input)
-    
 
     # Logout button in the sidebar
     st.sidebar.button("Logout", on_click=logout)
 
-    # Streamed response emulator
-    def response_generator():
-        response = random.choice([
-            "Hello there! How can I assist you today?",
-            "Hi, human! Is there anything I can help you with?",
-            "Do you need help?",
-            "Greetings! What can I do for you?",
-            "Welcome! How may I be of assistance?",
-            "Hey! I'm here to help. What's on your mind?",
-            "Good to see you! What would you like to explore today?",
-            "Hi there! Ready to dive into your questions!",
-            "Hello! I'm your AI assistant. What would you like to know?",
-            "Welcome aboard! What shall we work on today?",
-            "Greetings! I'm here to help you find answers.",
-            "Hello! Looking forward to our conversation.",
-            "Hi! Let's tackle your questions together.",
-            "Welcome! What topics would you like to explore?",
-            "Hey there! Ready to assist with whatever you need."
-        ])
-        for word in response.split():
-            yield word + " "
-            time.sleep(0.05)
-
-    st.title("DeepQuery")
-    st.subheader("Dive Deeper!")
+    # Initialize the agent
+    agent_executor = initialize_agent()
 
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
+
+    st.title("DeepQuery")
+    st.subheader("Dive Deeper!")
 
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
@@ -167,15 +141,23 @@ def main_page():
     if prompt := st.chat_input("What is up?"):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
-        # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Display assistant response in chat message container
+        # Get the agent's response and display it dynamically
         with st.chat_message("assistant"):
-            response = st.write_stream(response_generator())
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            response_placeholder = st.empty()
+            agent_response = ""
+
+            for chunk in query_agent(agent_executor, prompt):
+                agent_response += chunk
+                response_placeholder.markdown(agent_response)
+        
+        # Add the agent response to the chat history if it exists
+        if agent_response:
+            st.session_state.messages.append({"role": "assistant", "content": agent_response})
+
+
 
 # Display the appropriate page based on login state
 if st.session_state.logged_in:
@@ -183,16 +165,9 @@ if st.session_state.logged_in:
 else:
     login_page()
 
-
-
-
-
-#---Helper Functions---
-
+# --- Helper Functions ---
 def get_user_info(access_token):
     pass
 
 def get_user_data(access_token):
     pass
-
-
