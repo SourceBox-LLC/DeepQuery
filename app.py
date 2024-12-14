@@ -5,7 +5,7 @@ import logging
 import os
 from dotenv import load_dotenv
 from agent import initialize_agent, query_agent
-from test import create_vector_store, add_documents_to_store, search_documents
+from vector_store import create_vector_store, add_documents_to_store, search_documents
 from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
 
