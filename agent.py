@@ -35,33 +35,28 @@ def initialize_agent(model_id):
     
     return agent_executor
 
-def query_agent(agent_executor, query):
+def query_agent(agent_executor, messages):
     """
-    Query the agent with a specific question and return the streamed response.
+    Query the agent with a list of messages and return the streamed response.
     """
-    logger.info(f"Sending query: {query}")
+    logger.info(f"Sending messages: {messages}")
     config = {"configurable": {"thread_id": "abc123"}}
     
     response_content = ""  # To accumulate the response content
-    
+
     try:
         for chunk in agent_executor.stream(
-            {"messages": [HumanMessage(content=query)]},
+            {"messages": messages},
             config
         ):
             # Check if we have messages in the chunk
             if "agent" in chunk and "messages" in chunk["agent"]:
                 for message in chunk["agent"]["messages"]:
                     if hasattr(message, 'content') and message.content:
-                        # Check if the content is a string, if not, convert it to a string
-                        if isinstance(message.content, str):
-                            response_content += message.content
-                            yield message.content  # Yield each chunk for streaming
-                        else:
-                            # Convert non-string content to a readable string
-                            formatted_content = json.dumps(message.content, indent=2) if isinstance(message.content, (dict, list)) else str(message.content)
-                            response_content += formatted_content
-                            yield formatted_content  # Yield the formatted content
+                        # Append the message content to response_content
+                        response_content += message.content
+                        yield message.content  # Yield each chunk for streaming
+
     except Exception as e:
         logger.error(f"Error during agent query: {e}", exc_info=True)
         yield f"An error occurred: {e}"

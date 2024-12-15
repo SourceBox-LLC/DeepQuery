@@ -7,6 +7,7 @@ from local_vector_store import create_vector_store, add_documents_to_store, sear
 from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
 from auth import login_page, logout  # Import the login and logout functions
+from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message  # DynamoDB functions
 
 # Load environment variables
 load_dotenv()
@@ -27,15 +28,31 @@ def main_page():
     logging.info(f"Access Token: {st.session_state.access_token}")
     st.sidebar.title("Options")
 
+    # Ensure DynamoDB table exists
+    create_dynamodb_table()
+
+    # Use the access token as session ID for chat history
+    session_id = st.session_state.access_token
+    if not session_id:
+        st.error("Session ID not found. Please log in.")
+        return
+
+    # Retrieve chat history from DynamoDB
+    chat_history = get_chat_history(session_id)
+    logging.info(f"Retrieved chat history: {chat_history}")
+
+    st.title("DeepQuery")
+    st.subheader("Dive Deeper!")
+
+    # Display chat messages from history on app rerun
+    for message in chat_history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
     # Select box for chatbot model
     model_options = ["Claude", "Cohere"]
     selected_model = st.sidebar.selectbox("Chat Model", model_options)
     st.sidebar.write(f"You selected: {selected_model}")
-
-    # Select box for conversation history
-    history_options = ["New Conversation", "History 1", "History 2"]
-    selected_history = st.sidebar.selectbox("Conversation History", history_options)
-    st.sidebar.write(f"You selected: {selected_history}")
 
     # Initialize the vector store
     vector_store = create_vector_store()
@@ -85,27 +102,22 @@ def main_page():
 
     # Initialize the agent
     if selected_model in model_options:
-        if selected_model == "Claude":  
+        if selected_model == "Claude":
             model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         else:
             model_id = "cohere.command-r-plus-v1:0"
-
         agent_executor = initialize_agent(model_id=model_id)
-
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    st.title("DeepQuery")
-    st.subheader("Dive Deeper!")
-
-    # Display chat messages from history on app rerun
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    else:
+        st.error("Selected model is not supported.")
+        return
 
     # Accept user input
     if prompt := st.chat_input("What is up?"):
+        logging.info(f"User prompt: {prompt}")
+
+        # Add the new user message to the chat history
+        chat_history.append({"role": "human", "content": prompt})
+
         # Query the vector store with the user's prompt
         search_results = search_documents(vector_store, prompt)
         search_results_content = "\n".join([doc.page_content for doc in search_results])
@@ -113,8 +125,8 @@ def main_page():
         # Construct the complete prompt
         complete_prompt = f"PROMPT: {prompt}\nVECTOR SEARCH RESULTS: {search_results_content}"
 
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": complete_prompt})
+        # Add user message to DynamoDB chat history
+        add_user_message(session_id, complete_prompt)
         with st.chat_message("user"):
             st.markdown(complete_prompt)
 
@@ -123,13 +135,17 @@ def main_page():
             response_placeholder = st.empty()
             agent_response = ""
 
-            for chunk in query_agent(agent_executor, complete_prompt):
+            # Pass the full chat history to the agent
+            for chunk in query_agent(agent_executor, chat_history):
                 agent_response += chunk
                 response_placeholder.markdown(agent_response)
-        
-        # Add the agent response to the chat history if it exists
+
+        # Log the agent's response
+        logging.info(f"Agent response: {agent_response}")
+
+        # Add the agent response to DynamoDB chat history
         if agent_response:
-            st.session_state.messages.append({"role": "assistant", "content": agent_response})
+            add_ai_message(session_id, agent_response)
 
 # Display the appropriate page based on login state
 if st.session_state.logged_in:
