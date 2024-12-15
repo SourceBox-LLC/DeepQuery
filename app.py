@@ -6,7 +6,7 @@ from agent import initialize_agent, query_agent
 from local_vector_store import create_vector_store, add_documents_to_store, search_documents
 from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
-from auth import login_page, logout, get_user_id  # Import the login and logout functions
+from auth import login_page, logout, get_user_info  # Import the login and logout functions
 from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message  # DynamoDB functions
 
 # Load environment variables
@@ -30,9 +30,12 @@ if 'logout_trigger' not in st.session_state:
 if st.session_state.logged_in and 'user_info' not in st.session_state:
     access_token = st.session_state.access_token
     if access_token:
-        user_info = get_user_id(access_token)
-        st.session_state.user_info = user_info
-        logging.info(f"User Info: {user_info}")
+        user_info = get_user_info(access_token)
+        if user_info:
+            st.session_state.user_info = user_info
+            logging.info(f"User Info: {user_info}")
+        else:
+            logging.warning("Failed to retrieve user info.")
     else:
         logging.warning("Access token is not available to retrieve user info.")
 
@@ -51,8 +54,11 @@ def main_page():
         st.error("Session ID not found. Please log in.")
         return
 
+    # Retrieve user ID from user info
+    user_id = str(st.session_state.user_info["id"])
+
     # Retrieve chat history from DynamoDB
-    chat_history = get_chat_history(session_id)
+    chat_history = get_chat_history(user_id)
     logging.info(f"Retrieved chat history: {chat_history}")
 
     st.title("DeepQuery")
@@ -140,7 +146,7 @@ def main_page():
         complete_prompt = f"PROMPT: {prompt}\nVECTOR SEARCH RESULTS: {search_results_content}"
 
         # Add user message to DynamoDB chat history
-        add_user_message(session_id, complete_prompt)
+        add_user_message(user_id, complete_prompt)
         with st.chat_message("user"):
             st.markdown(complete_prompt)
 
@@ -159,7 +165,7 @@ def main_page():
 
         # Add the agent response to DynamoDB chat history
         if agent_response:
-            add_ai_message(session_id, agent_response)
+            add_ai_message(user_id, agent_response)
 
 # Display the appropriate page based on login state
 if st.session_state.logged_in:

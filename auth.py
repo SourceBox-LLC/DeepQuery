@@ -70,7 +70,7 @@ def logout():
     st.session_state.logout_trigger = not st.session_state.logout_trigger  # Toggle the trigger 
 
 
-def get_user_id(access_token):
+def get_user_info(access_token):
     # Define the payload for the Lambda function
     payload = {
         "action": "GET_USER",
@@ -84,20 +84,20 @@ def get_user_id(access_token):
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
-        logging.info("Lambda function invoked successfully for getting user ID.")
+        logging.info("Lambda function invoked successfully for getting user info.")
     except Exception as e:
-        logging.error("Error invoking Lambda function for getting user ID: %s", e)
+        logging.error("Error invoking Lambda function for getting user info: %s", e)
         return None
 
     # Read the response
     response_payload = json.loads(response['Payload'].read())
-    logging.info("Received response from Lambda for getting user ID: %s", response_payload)
+    logging.info("Received response from Lambda for getting user info: %s", response_payload)
 
-    # Extract and return the user ID from the response
+    # Extract and return the user info from the response
     if response_payload.get('statusCode') == 200:
-        user_id = json.loads(response_payload['body']).get('user_id')
-        logging.info("User ID retrieved successfully: %s", user_id)
-        return user_id
+        user_info = json.loads(response_payload['body'])
+        logging.info("User info retrieved successfully: %s", user_info)
+        return user_info
     else:
-        logging.warning("Failed to retrieve user ID.")
+        logging.warning("Failed to retrieve user info.")
         return None
