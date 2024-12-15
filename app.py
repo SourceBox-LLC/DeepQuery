@@ -6,7 +6,7 @@ from agent import initialize_agent, query_agent
 from local_vector_store import create_vector_store, add_documents_to_store, search_documents
 from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
-from auth import login_page, logout  # Import the login and logout functions
+from auth import login_page, logout, get_user_id  # Import the login and logout functions
 from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message  # DynamoDB functions
 
 # Load environment variables
@@ -15,13 +15,27 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
 # Initialize session state for login
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
+
 if 'access_token' not in st.session_state:
     st.session_state.access_token = None
+
 if 'logout_trigger' not in st.session_state:
     st.session_state.logout_trigger = False
+
+# Ensure user info is retrieved only when logged in
+if st.session_state.logged_in and 'user_info' not in st.session_state:
+    access_token = st.session_state.access_token
+    if access_token:
+        user_info = get_user_id(access_token)
+        st.session_state.user_info = user_info
+        logging.info(f"User Info: {user_info}")
+    else:
+        logging.warning("Access token is not available to retrieve user info.")
+
 
 # Function to display the main page
 def main_page():

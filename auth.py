@@ -68,3 +68,36 @@ def logout():
     st.session_state.logged_in = False
     st.session_state.access_token = None
     st.session_state.logout_trigger = not st.session_state.logout_trigger  # Toggle the trigger 
+
+
+def get_user_id(access_token):
+    # Define the payload for the Lambda function
+    payload = {
+        "action": "GET_USER",
+        "token": access_token
+    }
+
+    # Invoke the Lambda function
+    try:
+        response = lambda_client.invoke(
+            FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload)
+        )
+        logging.info("Lambda function invoked successfully for getting user ID.")
+    except Exception as e:
+        logging.error("Error invoking Lambda function for getting user ID: %s", e)
+        return None
+
+    # Read the response
+    response_payload = json.loads(response['Payload'].read())
+    logging.info("Received response from Lambda for getting user ID: %s", response_payload)
+
+    # Extract and return the user ID from the response
+    if response_payload.get('statusCode') == 200:
+        user_id = json.loads(response_payload['body']).get('user_id')
+        logging.info("User ID retrieved successfully: %s", user_id)
+        return user_id
+    else:
+        logging.warning("Failed to retrieve user ID.")
+        return None
