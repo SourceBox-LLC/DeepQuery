@@ -8,6 +8,7 @@ from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
 from auth import login_page, logout, get_user_info  # Import the login and logout functions
 from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message  # DynamoDB functions
+from packs import get_current_packs  # Import the get_current_packs function
 
 # Load environment variables
 load_dotenv()
@@ -106,8 +107,17 @@ def main_page():
         st.sidebar.success("File uploaded and embedded successfully!")
 
     # Select box in the sidebar for packs
-    pack_options = ["No Pack", "Pack 1", "Pack 2"]
+    packs = get_current_packs()
+    pack_options = ["No Pack"] + [pack["Pack Name"] for pack in packs]
     selected_pack = st.sidebar.selectbox("Connect to a Pack", pack_options)
+    
+    # Store the selected pack's ID if a pack is selected
+    if selected_pack != "No Pack":
+        selected_pack_info = next(pack for pack in packs if pack["Pack Name"] == selected_pack)
+        st.session_state.selected_pack_id = selected_pack_info["Pack ID"]
+    else:
+        st.session_state.selected_pack_id = None
+    
     st.sidebar.write(f"You selected: {selected_pack}")
 
     # Activate voice toggle

@@ -101,3 +101,4 @@ def get_user_info(access_token):
     else:
         logging.warning("Failed to retrieve user info.")
         return None
+
