@@ -7,7 +7,7 @@ from local_vector_store import create_vector_store, add_documents_to_store, sear
 from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
 from auth import login_page, logout, get_user_info  # Import the login and logout functions
-from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message  # DynamoDB functions
+from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message, clear_chat_history  # DynamoDB functions
 from packs import get_current_packs, query_pinecone_pack  # Import the get_current_packs function
 
 # Load environment variables
@@ -40,6 +40,16 @@ if st.session_state.logged_in and 'user_info' not in st.session_state:
     else:
         logging.warning("Access token is not available to retrieve user info.")
 
+
+# --- Helper Functions ---
+def handle_clear_chat_history():
+    """Callback function for the clear chat history button."""
+    if st.session_state.access_token:
+        user_id = str(st.session_state.user_info["id"])  # Get the user ID
+        if clear_chat_history(user_id):  # Use the imported clear_chat_history function
+            st.rerun()  # Refresh the page to show empty chat
+        else:
+            st.error("Failed to clear chat history")
 
 # Function to display the main page
 def main_page():
@@ -126,6 +136,8 @@ def main_page():
         audio_input = st.sidebar.audio_input("Record a voice message")
         if audio_input:
             st.sidebar.audio(audio_input)
+    
+    st.sidebar.button("Clear Chat History", on_click=handle_clear_chat_history)
 
     # Logout button in the sidebar
     st.sidebar.button("Logout", on_click=logout)

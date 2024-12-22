@@ -45,7 +45,26 @@ def add_ai_message(session_id, message_content):
     history.add_ai_message(message_content)
     logging.info(f"Added AI message to session {session_id}: {message_content}")
 
-
+def clear_chat_history(session_id):
+    """Clear all chat history for a given session ID."""
+    try:
+        # Initialize DynamoDB client
+        dynamodb = boto3.resource("dynamodb")
+        table = dynamodb.Table("SessionTable")
+        
+        # Delete the item with the given session ID
+        response = table.delete_item(
+            Key={
+                'SessionId': session_id
+            }
+        )
+        
+        logging.info(f"Chat history cleared for session {session_id}")
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error clearing chat history for session {session_id}: {e}")
+        return False
 
 if __name__ == "__main__":
     # Create the DynamoDB table
