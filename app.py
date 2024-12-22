@@ -9,6 +9,7 @@ import tempfile
 from auth import login_page, logout, get_user_info  # Import the login and logout functions
 from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message, clear_chat_history  # DynamoDB functions
 from packs import get_current_packs, query_pinecone_pack  # Import the get_current_packs function
+import json
 
 # Load environment variables
 load_dotenv()
@@ -171,9 +172,25 @@ def main_page():
         if selected_pack != "No Pack":
             username = st.session_state.user_info.get("username")
             pinecone_results = query_pinecone_pack(username, selected_pack, prompt)
-            if pinecone_results:
-                logging.info(f"Pinecone pack results: {pinecone_results}")
-                agent_prompt += f"\nPINECONE PACK RESULTS: {pinecone_results}"
+            if pinecone_results and isinstance(pinecone_results, dict):
+                try:
+                    # Parse the response body
+                    body = json.loads(pinecone_results.get('body', '{}'))
+                    matches = body.get('message', {}).get('matches', [])
+                    
+                    # Extract text from matches
+                    pack_texts = []
+                    for match in matches:
+                        if 'metadata' in match and 'text' in match['metadata']:
+                            pack_texts.append(match['metadata']['text'])
+                    
+                    # Add pack results to prompt if we found any
+                    if pack_texts:
+                        pack_content = "\n".join(pack_texts)
+                        agent_prompt += f"\nPINECONE PACK RESULTS: {pack_content}"
+                        
+                except json.JSONDecodeError as e:
+                    logging.error(f"Error parsing Pinecone results: {e}")
 
         # Add just the user prompt to DynamoDB chat history
         add_user_message(user_id, prompt)
@@ -206,10 +223,3 @@ if st.session_state.logged_in:
     main_page()
 else:
     login_page()
-
-# --- Helper Functions ---
-def get_user_info(access_token):
-    pass
-
-def get_user_data(access_token):
-    pass
