@@ -8,7 +8,7 @@ from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
 from auth import login_page, logout, get_user_info  # Import the login and logout functions
 from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message  # DynamoDB functions
-from packs import get_current_packs  # Import the get_current_packs function
+from packs import get_current_packs, query_pinecone_pack  # Import the get_current_packs function
 
 # Load environment variables
 load_dotenv()
@@ -145,28 +145,40 @@ def main_page():
     if prompt := st.chat_input("What is up?"):
         logging.info(f"User prompt: {prompt}")
 
-        # Add the new user message to the chat history
+        # Add just the prompt to chat history display
         chat_history.append({"role": "human", "content": prompt})
 
         # Query the vector store with the user's prompt
         search_results = search_documents(vector_store, prompt)
         search_results_content = "\n".join([doc.page_content for doc in search_results])
+        
+        # Construct the base prompt with local search results
+        agent_prompt = f"PROMPT: {prompt}\nLOCAL SEARCH RESULTS: {search_results_content}"
+        
+        # Only query Pinecone pack if a specific pack is selected (not "No Pack")
+        if selected_pack != "No Pack":
+            username = st.session_state.user_info.get("username")
+            pinecone_results = query_pinecone_pack(username, selected_pack, prompt)
+            if pinecone_results:
+                logging.info(f"Pinecone pack results: {pinecone_results}")
+                agent_prompt += f"\nPINECONE PACK RESULTS: {pinecone_results}"
 
-        # Construct the complete prompt
-        complete_prompt = f"PROMPT: {prompt}\nVECTOR SEARCH RESULTS: {search_results_content}"
-
-        # Add user message to DynamoDB chat history
-        add_user_message(user_id, complete_prompt)
+        # Add just the user prompt to DynamoDB chat history
+        add_user_message(user_id, prompt)
+        
+        # Display just the prompt in the chat
         with st.chat_message("user"):
-            st.markdown(complete_prompt)
+            st.markdown(prompt)
 
         # Get the agent's response and display it dynamically
         with st.chat_message("assistant"):
             response_placeholder = st.empty()
             agent_response = ""
 
-            # Pass the full chat history to the agent
-            for chunk in query_agent(agent_executor, chat_history):
+            # Pass the full context to the agent while keeping clean chat history
+            temp_history = chat_history.copy()
+            temp_history[-1]["content"] = agent_prompt  # Replace last prompt with full context
+            for chunk in query_agent(agent_executor, temp_history):
                 agent_response += chunk
                 response_placeholder.markdown(agent_response)
 

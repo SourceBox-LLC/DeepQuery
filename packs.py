@@ -57,6 +57,10 @@ def get_current_packs():
 
 
 def query_pinecone_pack(username, pack_name, query):
+    # Return None immediately if "No Pack" is selected
+    if pack_name == "No Pack":
+        return None
+    
     # Define the payload for the Lambda function
     payload = {
         "body": {
@@ -95,4 +99,4 @@ def query_pinecone_pack(username, pack_name, query):
 if __name__ == "__main__":
     print(get_current_packs())
 
-    print(query_pinecone_pack("example-user", "My Custom Pack", "who is elon musk?"))
+    print(query_pinecone_pack("newuser", "My Custom Pack", "who is elon musk?"))
