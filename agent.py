@@ -1,14 +1,17 @@
 # agent.py
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
+
 from dotenv import load_dotenv
 import os
 import logging
 import json
-from tools import create_image_tool
+
+from custom_tools import create_image_tool, code_interpreter
+from langchain_community.tools.tavily_search import TavilySearchResults
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +38,7 @@ def initialize_agent(model_id):
     )
     
     logger.info("Creating agent...")
-    agent_executor = create_react_agent(model, [search, create_image_tool], checkpointer=memory)
+    agent_executor = create_react_agent(model, [search, create_image_tool, code_interpreter], checkpointer=memory)
     
     return agent_executor
 

@@ -2,6 +2,7 @@ import logging
 from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_aws.embeddings.bedrock import BedrockEmbeddings
 from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,17 +20,43 @@ def create_vector_store():
 def add_documents_to_store(vector_store, file_contents):
     """
     Add documents to the vector store from file contents.
+    Documents are split into chunks before embedding.
     
-    :param vector_store: The vector store to add documents to.
-    :param file_contents: A list of tuples, each containing (file_id, content, metadata).
+    Args:
+        vector_store: The vector store to add documents to
+        file_contents: List of tuples (file_id, content, metadata)
     """
     logging.info("Adding documents to the vector store.")
-    documents = [
-        Document(id=file_id, page_content=content, metadata=metadata)
-        for file_id, content, metadata in file_contents
-    ]
-    vector_store.add_documents(documents=documents)
-    logging.info("Documents added successfully.")
+    
+    # Initialize text splitter
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=4000,  # Smaller than the 8192 token limit
+        chunk_overlap=200,
+        length_function=len,
+    )
+    
+    all_documents = []
+    for file_id, content, metadata in file_contents:
+        # Split the content into chunks
+        chunks = text_splitter.split_text(content)
+        
+        # Create Document objects for each chunk
+        chunk_docs = [
+            Document(
+                page_content=chunk,
+                metadata={
+                    **metadata,
+                    "file_id": file_id,
+                    "chunk_index": i
+                }
+            )
+            for i, chunk in enumerate(chunks)
+        ]
+        all_documents.extend(chunk_docs)
+    
+    # Add the chunked documents to the vector store
+    vector_store.add_documents(documents=all_documents)
+    logging.info(f"Added {len(all_documents)} document chunks successfully.")
 
 def search_documents(vector_store, query, k=1):
     """Search for documents similar to the query."""
