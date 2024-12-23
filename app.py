@@ -53,6 +53,7 @@ def handle_clear_chat_history():
         else:
             st.error("Failed to clear chat history")
 
+
 # Function to display the main page
 def main_page():
     logging.info(f"Access Token: {st.session_state.access_token}")
@@ -91,7 +92,10 @@ def main_page():
     vector_store = create_vector_store()
 
     # File upload for context in the sidebar
-    uploaded_file = st.sidebar.file_uploader("Upload a file for context", type=["txt", "pdf", "docx", "csv", "json", "xlsx"])
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload a file for context",
+        type=["txt", "pdf", "docx", "csv", "json", "xlsx"]
+    )
     if uploaded_file is not None:
         file_id = uploaded_file.name
         metadata = {"type": uploaded_file.type}
@@ -167,7 +171,10 @@ def main_page():
                                 # For scatter chart, we need to select two columns for x and y axes
                                 if len(selected_columns) >= 2:
                                     x_axis = st.selectbox("Select X-axis column:", options=selected_columns)
-                                    y_axis = st.selectbox("Select Y-axis column:", options=[col for col in selected_columns if col != x_axis])
+                                    y_axis = st.selectbox(
+                                        "Select Y-axis column:",
+                                        options=[col for col in selected_columns if col != x_axis]
+                                    )
 
                                     # Create a scatter plot using Altair
                                     import altair as alt
@@ -208,12 +215,10 @@ def main_page():
     
     st.sidebar.write(f"You selected: {selected_pack}")
 
-    # Activate voice toggle
-    voice_toggle = st.sidebar.toggle("Activate Voice", value=False)
+    # Activate voice toggle (optional placeholder)
+    voice_toggle = st.sidebar.checkbox("Activate Voice", value=False)
     if voice_toggle:
-        audio_input = st.sidebar.audio_input("Record a voice message")
-        if audio_input:
-            st.sidebar.audio(audio_input)
+        st.sidebar.warning("Voice feature is not fully implemented in this example.")
     
     st.sidebar.button("Clear Chat History", on_click=handle_clear_chat_history)
 
@@ -230,6 +235,11 @@ def main_page():
     else:
         st.error("Selected model is not supported.")
         return
+
+    # -------------------------------------------------
+    # Ensure tool_logs is defined in this scope
+    tool_logs = []
+    # -------------------------------------------------
 
     # Accept user input
     if prompt := st.chat_input("What is up?"):
@@ -283,31 +293,18 @@ def main_page():
 
             # Pass the full context to the agent while keeping clean chat history
             temp_history = chat_history.copy()
-            temp_history[-1]["content"] = agent_prompt  # Replace last prompt with full context
+            # Replace last prompt with full context
+            temp_history[-1]["content"] = agent_prompt
+
+            # Stream chunks from the agent
             for chunk in query_agent(agent_executor, temp_history):
-                # Check if the chunk contains a data URI for an image
-                if chunk and "data:image/png;base64," in chunk:
-                    # Split the response into text and image parts
-                    parts = chunk.split("data:image/png;base64,")
-                    text_part = parts[0]
-                    image_data = parts[1].split('"')[0]  # Extract just the base64 data
-                    
-                    # Display any text before the image
-                    if text_part:
-                        agent_response += text_part
-                        response_placeholder.markdown(agent_response)
-                    
-                    # Display the image
-                    st.image(f"data:image/png;base64,{image_data}")
-                    
-                    # Continue with any remaining text
-                    if len(parts) > 2:
-                        remaining_text = "".join(parts[2:])
-                        agent_response += remaining_text
-                        response_placeholder.markdown(agent_response)
-                else:
-                    agent_response += chunk
+                if chunk["type"] == "response":
+                    agent_response += chunk["content"]
                     response_placeholder.markdown(agent_response)
+                elif chunk["type"] == "tool_log":
+                    tool_logs.append(chunk["content"])
+                elif chunk["type"] == "error":
+                    st.error(chunk["content"])
 
         # Log the agent's response
         logging.info(f"Agent response: {agent_response}")
@@ -315,6 +312,14 @@ def main_page():
         # Add the agent response to DynamoDB chat history
         if agent_response:
             add_ai_message(user_id, agent_response)
+
+    # Check if there are any tool logs to display
+    if tool_logs:
+        with st.expander("Tool Usage Logs", expanded=False):
+            st.write("Here are the details of the tool usage:")
+            for log in tool_logs:
+                st.text(log)
+
 
 # Display the appropriate page based on login state
 if st.session_state.logged_in:
