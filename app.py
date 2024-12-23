@@ -82,156 +82,169 @@ def main_page():
     for message in chat_history:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+    
+    # Select box for image gen or text gen
+    media_gen_or_text_gen = st.sidebar.selectbox("Media Gen or Text Gen", ["Text Gen", "Media Gen"])
+    st.sidebar.write(f"You selected: {media_gen_or_text_gen}")
 
-    # Select box for chatbot model
-    model_options = ["Claude", "Cohere"]
-    selected_model = st.sidebar.selectbox("Chat Model", model_options)
-    st.sidebar.write(f"You selected: {selected_model}")
+    # Conditional logic based on the selection
+    if media_gen_or_text_gen == "Text Gen":
+        # Display options for Text Gen
+        model_options = ["Claude", "Cohere"]
+        selected_model = st.sidebar.selectbox("Chat Model", model_options)
+        st.sidebar.write(f"You selected: {selected_model}")
 
-    # Initialize the vector store
-    vector_store = create_vector_store()
+        # Initialize the vector store
+        vector_store = create_vector_store()
 
-    # File upload for context in the sidebar
-    uploaded_file = st.sidebar.file_uploader(
-        "Upload a file for context",
-        type=["txt", "pdf", "docx", "csv", "json", "xlsx"]
-    )
-    if uploaded_file is not None:
-        file_id = uploaded_file.name
-        metadata = {"type": uploaded_file.type}
+        # File upload for context in the sidebar
+        uploaded_file = st.sidebar.file_uploader(
+            "Upload a file for context",
+            type=["txt", "pdf", "docx", "csv", "json", "xlsx"]
+        )
+        if uploaded_file is not None:
+            file_id = uploaded_file.name
+            metadata = {"type": uploaded_file.type}
 
-        # Handle different file types
-        if uploaded_file.type == "application/pdf":
-            # Save the uploaded file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-                temp_file.write(uploaded_file.read())
-                temp_file_path = temp_file.name
+            # Handle different file types
+            if uploaded_file.type == "application/pdf":
+                # Save the uploaded file temporarily
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                    temp_file.write(uploaded_file.read())
+                    temp_file_path = temp_file.name
 
-            # Use PDFPlumberLoader to extract text from PDF
-            loader = PDFPlumberLoader(temp_file_path)
-            documents = loader.load()
-            file_content = "\n".join(doc.page_content for doc in documents)
+                # Use PDFPlumberLoader to extract text from PDF
+                loader = PDFPlumberLoader(temp_file_path)
+                documents = loader.load()
+                file_content = "\n".join(doc.page_content for doc in documents)
 
-            # Clean up the temporary file
-            os.remove(temp_file_path)
-        elif uploaded_file.type == "text/csv":
-            # Read CSV file
-            df = pd.read_csv(uploaded_file)
-            # Convert first 10 rows to string for display
-            preview = df.head(10).to_string()
-            file_content = f"CSV Preview (First 10 rows):\n{preview}"
+                # Clean up the temporary file
+                os.remove(temp_file_path)
+            elif uploaded_file.type == "text/csv":
+                # Read CSV file
+                df = pd.read_csv(uploaded_file)
+                # Convert first 10 rows to string for display
+                preview = df.head(10).to_string()
+                file_content = f"CSV Preview (First 10 rows):\n{preview}"
 
-            # Display the preview in the chat
-            with st.chat_message("assistant"):
-                st.markdown("I've loaded your CSV file. Here are the first 10 rows:")
-                st.dataframe(df.head(10))
-                
-                # Initialize session state for 'graph_data'
-                if 'graph_data' not in st.session_state:
-                    st.session_state['graph_data'] = False
+                # Display the preview in the chat
+                with st.chat_message("assistant"):
+                    st.markdown("I've loaded your CSV file. Here are the first 10 rows:")
+                    st.dataframe(df.head(10))
+                    
+                    # Initialize session state for 'graph_data'
+                    if 'graph_data' not in st.session_state:
+                        st.session_state['graph_data'] = False
 
-                # When the button is clicked, update session state
-                if st.button("Graph Data"):
-                    st.session_state['graph_data'] = True
+                    # When the button is clicked, update session state
+                    if st.button("Graph Data"):
+                        st.session_state['graph_data'] = True
 
-                # If 'graph_data' is True, display the chart options
-                if st.session_state['graph_data']:
-                    option = st.selectbox(
-                        "Which type of chart would you like to display?",
-                        ("Area Chart", "Bar Chart", "Line Chart", "Scatter Chart"),
-                    )
-
-                    st.write("You selected:", option)
-
-                    # Get numerical columns only
-                    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-
-                    if numeric_cols.empty:
-                        st.error("No numerical columns found in the uploaded file.")
-                    else:
-                        # Unique key for each multiselect to avoid conflicts
-                        multiselect_key = f"{option.lower().replace(' ', '_')}_columns"
-
-                        selected_columns = st.multiselect(
-                            "Select columns to plot:",
-                            options=numeric_cols,
-                            default=numeric_cols[:3] if len(numeric_cols) > 0 else None,
-                            key=multiselect_key
+                    # If 'graph_data' is True, display the chart options
+                    if st.session_state['graph_data']:
+                        option = st.selectbox(
+                            "Which type of chart would you like to display?",
+                            ("Area Chart", "Bar Chart", "Line Chart", "Scatter Chart"),
                         )
 
-                        if selected_columns:
-                            st.subheader(f"{option}")
-                            if option == "Area Chart":
-                                st.area_chart(data=df[selected_columns])
-                            elif option == "Bar Chart":
-                                st.bar_chart(data=df[selected_columns])
-                            elif option == "Line Chart":
-                                st.line_chart(data=df[selected_columns])
-                            elif option == "Scatter Chart":
-                                # For scatter chart, we need to select two columns for x and y axes
-                                if len(selected_columns) >= 2:
-                                    x_axis = st.selectbox("Select X-axis column:", options=selected_columns)
-                                    y_axis = st.selectbox(
-                                        "Select Y-axis column:",
-                                        options=[col for col in selected_columns if col != x_axis]
-                                    )
+                        st.write("You selected:", option)
 
-                                    # Create a scatter plot using Altair
-                                    import altair as alt
-                                    scatter_chart = alt.Chart(df).mark_circle(size=60).encode(
-                                        x=x_axis,
-                                        y=y_axis,
-                                        tooltip=selected_columns
-                                    ).interactive()
+                        # Get numerical columns only
+                        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
 
-                                    st.altair_chart(scatter_chart, use_container_width=True)
-                                else:
-                                    st.warning("Please select at least two columns for scatter plot.")
+                        if numeric_cols.empty:
+                            st.error("No numerical columns found in the uploaded file.")
                         else:
-                            st.warning("Please select at least one column to plot.")
+                            # Unique key for each multiselect to avoid conflicts
+                            multiselect_key = f"{option.lower().replace(' ', '_')}_columns"
 
-                    # Reset button to clear the session state
-                    if st.button("Reset"):
-                        st.session_state['graph_data'] = False
+                            selected_columns = st.multiselect(
+                                "Select columns to plot:",
+                                options=numeric_cols,
+                                default=numeric_cols[:3] if len(numeric_cols) > 0 else None,
+                                key=multiselect_key
+                            )
+
+                            if selected_columns:
+                                st.subheader(f"{option}")
+                                if option == "Area Chart":
+                                    st.area_chart(data=df[selected_columns])
+                                elif option == "Bar Chart":
+                                    st.bar_chart(data=df[selected_columns])
+                                elif option == "Line Chart":
+                                    st.line_chart(data=df[selected_columns])
+                                elif option == "Scatter Chart":
+                                    # For scatter chart, we need to select two columns for x and y axes
+                                    if len(selected_columns) >= 2:
+                                        x_axis = st.selectbox("Select X-axis column:", options=selected_columns)
+                                        y_axis = st.selectbox(
+                                            "Select Y-axis column:",
+                                            options=[col for col in selected_columns if col != x_axis]
+                                        )
+
+                                        # Create a scatter plot using Altair
+                                        import altair as alt
+                                        scatter_chart = alt.Chart(df).mark_circle(size=60).encode(
+                                            x=x_axis,
+                                            y=y_axis,
+                                            tooltip=selected_columns
+                                        ).interactive()
+
+                                        st.altair_chart(scatter_chart, use_container_width=True)
+                                    else:
+                                        st.warning("Please select at least two columns for scatter plot.")
+                            else:
+                                  st.warning("Please select at least one column to plot.")
+
+                        # Reset button to clear the session state
+                        if st.button("Reset"):
+                            st.session_state['graph_data'] = False
+            else:
+                # Decode other text-based files
+                file_content = uploaded_file.read().decode('utf-8')
+
+            # Add the uploaded file content to the vector store
+            add_documents_to_store(vector_store, [(file_id, file_content, metadata)])
+            st.sidebar.success("File uploaded and embedded successfully!")
+
+        # Select box in the sidebar for packs
+        packs = get_current_packs()
+        pack_options = ["No Pack"] + [pack["Pack Name"] for pack in packs]
+        selected_pack = st.sidebar.selectbox("Connect to a Pack", pack_options)
+        
+        # Store the selected pack's ID if a pack is selected
+        if selected_pack != "No Pack":
+            selected_pack_info = next(pack for pack in packs if pack["Pack Name"] == selected_pack)
+            st.session_state.selected_pack_id = selected_pack_info["Pack ID"]
         else:
-            # Decode other text-based files
-            file_content = uploaded_file.read().decode('utf-8')
+            st.session_state.selected_pack_id = None
+        
+        st.sidebar.write(f"You selected: {selected_pack}")
 
-        # Add the uploaded file content to the vector store
-        add_documents_to_store(vector_store, [(file_id, file_content, metadata)])
-        st.sidebar.success("File uploaded and embedded successfully!")
+    elif media_gen_or_text_gen == "Media Gen":
+        # Display options for Media Gen
+        # You can add different tools or options specific to Media Gen here
+        st.sidebar.write("Media Gen options will be displayed here.")
+        # Example: Add a different set of models or tools
+        media_model_options = ["DALL-E", "Stable Diffusion"]
+        selected_media_model = st.sidebar.selectbox("Media Model", media_model_options)
+        st.sidebar.write(f"You selected: {selected_media_model}")
 
-    # Select box in the sidebar for packs
-    packs = get_current_packs()
-    pack_options = ["No Pack"] + [pack["Pack Name"] for pack in packs]
-    selected_pack = st.sidebar.selectbox("Connect to a Pack", pack_options)
-    
-    # Store the selected pack's ID if a pack is selected
-    if selected_pack != "No Pack":
-        selected_pack_info = next(pack for pack in packs if pack["Pack Name"] == selected_pack)
-        st.session_state.selected_pack_id = selected_pack_info["Pack ID"]
-    else:
-        st.session_state.selected_pack_id = None
-    
-    st.sidebar.write(f"You selected: {selected_pack}")
-
-    # Activate voice toggle (optional placeholder)
-    voice_toggle = st.sidebar.checkbox("Activate Voice", value=False)
-    if voice_toggle:
-        st.sidebar.warning("Voice feature is not fully implemented in this example.")
-    
+    # Common options for both Text Gen and Media Gen
     st.sidebar.button("Clear Chat History", on_click=handle_clear_chat_history)
-
-    # Logout button in the sidebar
     st.sidebar.button("Logout", on_click=logout)
 
     # Initialize the agent
-    if selected_model in model_options:
+    if media_gen_or_text_gen == "Text Gen" and selected_model in model_options:
         if selected_model == "Claude":
             model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         else:
             model_id = "cohere.command-r-plus-v1:0"
         agent_executor = initialize_agent(model_id=model_id)
+    elif media_gen_or_text_gen == "Media Gen" and selected_media_model in media_model_options:
+        # Initialize media generation agent or tools
+        # Example: Initialize a different agent or tool for media generation
+        pass
     else:
         st.error("Selected model is not supported.")
         return

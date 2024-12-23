@@ -1,5 +1,4 @@
 - add regenerate response features
-- consistantly display tool logs and connect to dynamodb if applicable
 - audio input feature
 - audio output feature
 - image input feature
