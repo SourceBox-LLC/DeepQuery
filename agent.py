@@ -61,8 +61,11 @@ def query_agent(agent_executor, messages):
     logger.info(f"Sending messages: {messages}")
     config = {"configurable": {"thread_id": "abc123"}}
 
-    # Define regex pattern to extract tool use logs
-    tool_use_pattern = re.compile(r"\{'type': 'tool_use', 'name': '([^']+)', 'input': \{'query': '([^']+)'\}, 'id': '([^']+)'\}")
+    # Define a combined regex pattern to extract and remove both tool use logs and text logs
+    log_pattern = re.compile(
+        r"\{'type': 'tool_use', 'name': '([^']+)', 'input': \{'query': '([^']+)'\}, 'id': '([^']+)'\}"
+        r"|\{'type': 'text', 'text': \"[^\"]+\"\}"
+    )
 
     try:
         for chunk in agent_executor.stream({"messages": messages}, config):
@@ -77,16 +80,18 @@ def query_agent(agent_executor, messages):
                             # If content is a string, use it directly
                             content = str(message.content)
                         
-                        # Check if the message is a tool usage log
-                        if message.type == "tool_use":
-                            yield {"type": "tool_log", "content": content}
-                        else:
-                            # Use regex to find tool use logs in the response
-                            tool_logs = tool_use_pattern.findall(content)
-                            for log in tool_logs:
+                        # Use regex to find tool use logs in the response
+                        tool_logs = log_pattern.findall(content)
+                        for log in tool_logs:
+                            if log[0]:  # Only yield tool logs, not text logs
                                 tool_log_content = f"Tool Name: {log[0]}, Query: {log[1]}, ID: {log[2]}"
                                 yield {"type": "tool_log", "content": tool_log_content}
-                            
+                        
+                        # Remove all logs from the content
+                        content = log_pattern.sub('', content).strip()
+
+                        # Only yield non-log text content
+                        if content:
                             yield {"type": "response", "content": content}
 
     except Exception as e:
