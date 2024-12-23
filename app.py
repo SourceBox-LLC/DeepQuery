@@ -116,12 +116,76 @@ def main_page():
             # Convert first 10 rows to string for display
             preview = df.head(10).to_string()
             file_content = f"CSV Preview (First 10 rows):\n{preview}"
-            
+
             # Display the preview in the chat
             with st.chat_message("assistant"):
                 st.markdown("I've loaded your CSV file. Here are the first 10 rows:")
                 st.dataframe(df.head(10))
-                st.button("Graph Data")
+                
+                # Initialize session state for 'graph_data'
+                if 'graph_data' not in st.session_state:
+                    st.session_state['graph_data'] = False
+
+                # When the button is clicked, update session state
+                if st.button("Graph Data"):
+                    st.session_state['graph_data'] = True
+
+                # If 'graph_data' is True, display the chart options
+                if st.session_state['graph_data']:
+                    option = st.selectbox(
+                        "Which type of chart would you like to display?",
+                        ("Area Chart", "Bar Chart", "Line Chart", "Scatter Chart"),
+                    )
+
+                    st.write("You selected:", option)
+
+                    # Get numerical columns only
+                    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+
+                    if numeric_cols.empty:
+                        st.error("No numerical columns found in the uploaded file.")
+                    else:
+                        # Unique key for each multiselect to avoid conflicts
+                        multiselect_key = f"{option.lower().replace(' ', '_')}_columns"
+
+                        selected_columns = st.multiselect(
+                            "Select columns to plot:",
+                            options=numeric_cols,
+                            default=numeric_cols[:3] if len(numeric_cols) > 0 else None,
+                            key=multiselect_key
+                        )
+
+                        if selected_columns:
+                            st.subheader(f"{option}")
+                            if option == "Area Chart":
+                                st.area_chart(data=df[selected_columns])
+                            elif option == "Bar Chart":
+                                st.bar_chart(data=df[selected_columns])
+                            elif option == "Line Chart":
+                                st.line_chart(data=df[selected_columns])
+                            elif option == "Scatter Chart":
+                                # For scatter chart, we need to select two columns for x and y axes
+                                if len(selected_columns) >= 2:
+                                    x_axis = st.selectbox("Select X-axis column:", options=selected_columns)
+                                    y_axis = st.selectbox("Select Y-axis column:", options=[col for col in selected_columns if col != x_axis])
+
+                                    # Create a scatter plot using Altair
+                                    import altair as alt
+                                    scatter_chart = alt.Chart(df).mark_circle(size=60).encode(
+                                        x=x_axis,
+                                        y=y_axis,
+                                        tooltip=selected_columns
+                                    ).interactive()
+
+                                    st.altair_chart(scatter_chart, use_container_width=True)
+                                else:
+                                    st.warning("Please select at least two columns for scatter plot.")
+                        else:
+                            st.warning("Please select at least one column to plot.")
+
+                    # Reset button to clear the session state
+                    if st.button("Reset"):
+                        st.session_state['graph_data'] = False
         else:
             # Decode other text-based files
             file_content = uploaded_file.read().decode('utf-8')
