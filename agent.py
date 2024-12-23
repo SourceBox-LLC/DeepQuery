@@ -11,6 +11,7 @@ import json
 
 from custom_tools import create_image_tool, code_interpreter
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.tools.pubmed.tool import PubmedQueryRun
 
 
 # Configure logging
@@ -36,9 +37,11 @@ def initialize_agent(model_id):
         max_results=2, 
         api_key=os.getenv("TAVILY_API_KEY")
     )
+
+    pubmed_search = PubmedQueryRun()
     
     logger.info("Creating agent...")
-    agent_executor = create_react_agent(model, [search, create_image_tool, code_interpreter], checkpointer=memory)
+    agent_executor = create_react_agent(model, [search, create_image_tool, code_interpreter, pubmed_search], checkpointer=memory)
     
     return agent_executor
 

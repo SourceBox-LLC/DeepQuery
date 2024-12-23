@@ -10,6 +10,7 @@ from auth import login_page, logout, get_user_info  # Import the login and logou
 from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, add_ai_message, clear_chat_history  # DynamoDB functions
 from packs import get_current_packs, query_pinecone_pack  # Import the get_current_packs function
 import json
+import pandas as pd
 
 # Load environment variables
 load_dotenv()
@@ -109,6 +110,18 @@ def main_page():
 
             # Clean up the temporary file
             os.remove(temp_file_path)
+        elif uploaded_file.type == "text/csv":
+            # Read CSV file
+            df = pd.read_csv(uploaded_file)
+            # Convert first 10 rows to string for display
+            preview = df.head(10).to_string()
+            file_content = f"CSV Preview (First 10 rows):\n{preview}"
+            
+            # Display the preview in the chat
+            with st.chat_message("assistant"):
+                st.markdown("I've loaded your CSV file. Here are the first 10 rows:")
+                st.dataframe(df.head(10))
+                st.button("Graph Data")
         else:
             # Decode other text-based files
             file_content = uploaded_file.read().decode('utf-8')
@@ -208,8 +221,29 @@ def main_page():
             temp_history = chat_history.copy()
             temp_history[-1]["content"] = agent_prompt  # Replace last prompt with full context
             for chunk in query_agent(agent_executor, temp_history):
-                agent_response += chunk
-                response_placeholder.markdown(agent_response)
+                # Check if the chunk contains a data URI for an image
+                if chunk and "data:image/png;base64," in chunk:
+                    # Split the response into text and image parts
+                    parts = chunk.split("data:image/png;base64,")
+                    text_part = parts[0]
+                    image_data = parts[1].split('"')[0]  # Extract just the base64 data
+                    
+                    # Display any text before the image
+                    if text_part:
+                        agent_response += text_part
+                        response_placeholder.markdown(agent_response)
+                    
+                    # Display the image
+                    st.image(f"data:image/png;base64,{image_data}")
+                    
+                    # Continue with any remaining text
+                    if len(parts) > 2:
+                        remaining_text = "".join(parts[2:])
+                        agent_response += remaining_text
+                        response_placeholder.markdown(agent_response)
+                else:
+                    agent_response += chunk
+                    response_placeholder.markdown(agent_response)
 
         # Log the agent's response
         logging.info(f"Agent response: {agent_response}")

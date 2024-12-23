@@ -7,6 +7,12 @@ import os
 import requests
 import base64
 from io import BytesIO
+import base64
+import pandas as pd
+import io
+import streamlit as st
+
+from langchain.tools import tool
 
 load_dotenv()
 
@@ -64,6 +70,8 @@ def code_interpreter(code: str) -> str:
     )
 
     return python_repl.run(code)
+
+
 
 if __name__ == "__main__":
     result = create_image_tool("a majestic snow-capped mountain peak")
