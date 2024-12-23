@@ -63,7 +63,8 @@ def query_agent(agent_executor, messages):
 
     # Define a combined regex pattern to extract and remove both tool use logs and text logs
     log_pattern = re.compile(
-        r"\{'type': 'tool_use', 'name': '([^']+)', 'input': \{'query': '([^']+)'\}, 'id': '([^']+)'\}"
+        r"\{'type': 'tool_use', 'name': '([^']+)', 'input': \{'prompt': '([^']+)'\}, 'id': '([^']+)'\}"
+        r"|\{'type': 'tool_use', 'name': '([^']+)', 'input': \{'query': '([^']+)'\}, 'id': '([^']+)'\}"
         r"|\{'type': 'text', 'text': \"[^\"]+\"\}"
     )
 
@@ -83,8 +84,8 @@ def query_agent(agent_executor, messages):
                         # Use regex to find tool use logs in the response
                         tool_logs = log_pattern.findall(content)
                         for log in tool_logs:
-                            if log[0]:  # Only yield tool logs, not text logs
-                                tool_log_content = f"Tool Name: {log[0]}, Query: {log[1]}, ID: {log[2]}"
+                            if log[0] or log[3]:  # Only yield tool logs, not text logs
+                                tool_log_content = f"Tool Name: {log[0] or log[3]}, Query/Prompt: {log[1] or log[4]}, ID: {log[2] or log[5]}"
                                 yield {"type": "tool_log", "content": tool_log_content}
                         
                         # Remove all logs from the content
