@@ -83,6 +83,10 @@ def main_page():
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
+    on = st.sidebar.toggle("Visual Flow")
+    if on:
+        st.write("Visual Flow activated!")
+    
     # Select box for image gen or text gen
     media_gen_or_text_gen = st.sidebar.selectbox("Media Gen or Text Gen", ["Text Gen", "Media Gen"])
     st.sidebar.write(f"You selected: {media_gen_or_text_gen}")
