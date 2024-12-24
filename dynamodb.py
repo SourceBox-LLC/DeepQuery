@@ -2,6 +2,7 @@ from langchain_community.chat_message_histories import DynamoDBChatMessageHistor
 import boto3
 from botocore.exceptions import ClientError
 import logging
+import streamlit as st
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
