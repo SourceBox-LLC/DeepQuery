@@ -31,7 +31,8 @@ def initialize_agent(model_id):
     model = ChatBedrock(
         model=model_id,
         beta_use_converse_api=True,
-        streaming=True
+        streaming=True,
+        region_name=st.secrets["default"]["REGION"]
     )
     
     logger.info("Initializing Tavily search...")
