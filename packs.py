@@ -7,7 +7,7 @@ import streamlit as st
 session = boto3.Session(
     aws_access_key_id=st.secrets["default"]["ACCESS_KEY"],
     aws_secret_access_key=st.secrets["default"]["SECRET_KEY"],
-    region_name=st.secrets["default"]["REGION"]
+    region_name="us-east-1"
 )
 
 # Create a Lambda client
