@@ -22,7 +22,10 @@ session = boto3.Session(
 
 def create_dynamodb_table():
     """Create the DynamoDB table if it doesn't exist."""
-    dynamodb = boto3.resource("dynamodb")
+    dynamodb = boto3.resource(
+        "dynamodb",
+        region_name=REGION  # Ensure REGION is defined and contains the correct AWS region
+    )
     try:
         table = dynamodb.create_table(
             TableName="SessionTable",
