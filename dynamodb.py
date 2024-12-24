@@ -23,10 +23,7 @@ session = boto3.Session(
 
 def create_dynamodb_table():
     """Create the DynamoDB table if it doesn't exist."""
-    dynamodb = boto3.resource(
-        "dynamodb",
-        region_name=REGION  # Ensure REGION is defined and contains the correct AWS region
-    )
+    dynamodb = session.resource("dynamodb")
     try:
         table = dynamodb.create_table(
             TableName="SessionTable",
@@ -45,40 +42,41 @@ def create_dynamodb_table():
 
 def get_chat_history(session_id):
     """Retrieve chat history for a given session ID."""
-    history = DynamoDBChatMessageHistory(table_name="SessionTable", session_id=session_id)
+    history = DynamoDBChatMessageHistory(
+        table_name="SessionTable",
+        session_id=session_id,
+    )
     messages = [{"role": message.type, "content": message.content} for message in history.messages]
     logging.info(f"Chat history for session {session_id}: {messages}")
     return messages
 
 def add_user_message(session_id, message_content):
     """Add a user message to the chat history."""
-    history = DynamoDBChatMessageHistory(table_name="SessionTable", session_id=session_id)
+    history = DynamoDBChatMessageHistory(
+        table_name="SessionTable",
+        session_id=session_id,
+    )
     history.add_user_message(message_content)
     logging.info(f"Added user message to session {session_id}: {message_content}")
 
 def add_ai_message(session_id, message_content):
     """Add an AI message to the chat history."""
-    history = DynamoDBChatMessageHistory(table_name="SessionTable", session_id=session_id)
+    history = DynamoDBChatMessageHistory(
+        table_name="SessionTable",
+        session_id=session_id,
+    )
     history.add_ai_message(message_content)
     logging.info(f"Added AI message to session {session_id}: {message_content}")
 
 def clear_chat_history(session_id):
     """Clear all chat history for a given session ID."""
     try:
-        # Initialize DynamoDB client
-        dynamodb = boto3.resource("dynamodb")
+        dynamodb = session.resource("dynamodb")
         table = dynamodb.Table("SessionTable")
-        
-        # Delete the item with the given session ID
-        response = table.delete_item(
-            Key={
-                'SessionId': session_id
-            }
-        )
+        table.delete_item(Key={"SessionId": session_id})
         
         logging.info(f"Chat history cleared for session {session_id}")
         return True
-        
     except Exception as e:
         logging.error(f"Error clearing chat history for session {session_id}: {e}")
         return False
