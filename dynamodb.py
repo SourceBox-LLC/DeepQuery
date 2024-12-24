@@ -20,6 +20,7 @@ session = boto3.Session(
         region_name=REGION,
     )
 
+
 def create_dynamodb_table():
     """Create the DynamoDB table if it doesn't exist."""
     dynamodb = boto3.resource(

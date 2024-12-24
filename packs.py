@@ -17,6 +17,7 @@ session = boto3.Session(
     region_name=REGION
 )
 
+
 # Create a Lambda client
 lambda_client = session.client('lambda')
 

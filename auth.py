@@ -20,6 +20,7 @@ session = boto3.Session(
     region_name=REGION
 )
 
+
 lambda_client = session.client('lambda')
 
 # --- 3) DEFINE LOGIN PAGE ---
