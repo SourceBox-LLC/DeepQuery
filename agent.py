@@ -15,6 +15,7 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
 
 import streamlit as st
+import boto3
 
 
 # Configure logging
@@ -38,7 +39,7 @@ def initialize_agent(model_id):
     logger.info("Initializing Tavily search...")
     search = TavilySearchResults(
         max_results=2, 
-        api_key=st.secrets["default"]["TAVILY_API_KEY"]
+        tavily_api_key=st.secrets["default"]["TAVILY_API_KEY"]
     )
 
     pubmed_search = PubmedQueryRun()
@@ -101,3 +102,7 @@ def query_agent(agent_executor, messages):
     except Exception as e:
         logger.error(f"Error during agent query: {e}", exc_info=True)
         yield {"type": "error", "content": f"An error occurred: {e}"}
+
+
+# Set up the default session with a region
+boto3.setup_default_session(region_name=st.secrets["default"]["REGION"])
