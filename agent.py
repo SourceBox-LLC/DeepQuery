@@ -39,7 +39,7 @@ def initialize_agent(model_id):
     logger.info("Initializing Tavily search...")
     search = TavilySearchResults(
         max_results=2, 
-        api_key=st.secrets["default"]["TAVILY_API_KEY"]
+        tavily_api_key=st.secrets["default"]["TAVILY_API_KEY"]
     )
 
     pubmed_search = PubmedQueryRun()
