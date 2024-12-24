@@ -7,6 +7,18 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Read AWS creds from secrets
+ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
+SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
+REGION = "us-east-1"
+
+# Create a Boto3 session
+session = boto3.Session(
+    aws_access_key_id=ACCESS_KEY,
+    aws_secret_access_key=SECRET_KEY,
+    region_name=REGION
+)
+
 def create_dynamodb_table():
     """Create the DynamoDB table if it doesn't exist."""
     dynamodb = boto3.resource("dynamodb")
