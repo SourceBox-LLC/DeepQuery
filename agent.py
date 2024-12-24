@@ -14,6 +14,8 @@ from custom_tools import create_image_tool, code_interpreter
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
 
+import streamlit as st
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +37,7 @@ def initialize_agent(model_id):
     logger.info("Initializing Tavily search...")
     search = TavilySearchResults(
         max_results=2, 
-        api_key=os.getenv("TAVILY_API_KEY")
+        api_key=st.secrets["TAVILY_API_KEY"]
     )
 
     pubmed_search = PubmedQueryRun()
