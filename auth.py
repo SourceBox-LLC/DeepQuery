@@ -11,7 +11,7 @@ import logging
 # Read AWS creds from secrets
 ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
 SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
-REGION     = st.secrets["default"]["REGION"]
+REGION = "us-east-1"
 
 # Create a Boto3 session
 session = boto3.Session(
