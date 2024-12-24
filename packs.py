@@ -8,6 +8,8 @@ ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
 SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
 REGION = st.secrets["default"]["REGION"]
 
+logging.info(f"Using AWS Region: {REGION}")
+
 # Create a Boto3 session
 session = boto3.Session(
     aws_access_key_id=ACCESS_KEY,
