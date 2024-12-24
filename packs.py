@@ -1,18 +1,17 @@
 import boto3
 import json
 import logging
-import os
+import streamlit as st
 
 # Initialize a session using Boto3
 session = boto3.Session(
-    aws_access_key_id=os.getenv('ACCESS_KEY'),
-    aws_secret_access_key=os.getenv('SECRET_KEY'),
-    region_name=os.getenv('REGION')
+    aws_access_key_id=st.secrets["default"]["ACCESS_KEY"],
+    aws_secret_access_key=st.secrets["default"]["SECRET_KEY"],
+    region_name=st.secrets["default"]["REGION"]
 )
 
 # Create a Lambda client
 lambda_client = session.client('lambda')
-
 
 # Function to fetch current packs
 def get_current_packs():
