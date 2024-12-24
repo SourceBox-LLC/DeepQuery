@@ -4,10 +4,15 @@ import logging
 import streamlit as st
 
 # Initialize a session using Boto3
+ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
+SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
+REGION = "us-east-1"
+
+# Create a Boto3 session
 session = boto3.Session(
-    aws_access_key_id=st.secrets["default"]["ACCESS_KEY"],
-    aws_secret_access_key=st.secrets["default"]["SECRET_KEY"],
-    region_name="us-east-1"
+    aws_access_key_id=ACCESS_KEY,
+    aws_secret_access_key=SECRET_KEY,
+    region_name=REGION
 )
 
 # Create a Lambda client
