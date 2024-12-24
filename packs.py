@@ -6,7 +6,7 @@ import streamlit as st
 # Initialize a session using Boto3
 ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
 SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
-REGION = "us-east-1"
+REGION = st.secrets["default"]["REGION"]
 
 # Create a Boto3 session
 session = boto3.Session(
