@@ -2,19 +2,27 @@ import streamlit as st
 import boto3
 import json
 import logging
-import os
 
-# Initialize a session using Boto3
+# --- 1) ENSURE SECRETS ARE LOADED ---
+# Debug line (optional): 
+# st.write("Secrets loaded from st.secrets:", st.secrets)
+
+# --- 2) INITIALIZE BOTO3 SESSION & CLIENT ---
+# Read AWS creds from secrets
+ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
+SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
+REGION     = st.secrets["default"]["REGION"]
+
+# Create a Boto3 session
 session = boto3.Session(
-    aws_access_key_id=st.secrets["default"]["ACCESS_KEY"],
-    aws_secret_access_key=st.secrets["default"]["SECRET_KEY"],
-    region_name=st.secrets["default"]["REGION"]
+    aws_access_key_id=ACCESS_KEY,
+    aws_secret_access_key=SECRET_KEY,
+    region_name=REGION
 )
 
-# Create a Lambda client
 lambda_client = session.client('lambda')
 
-# Function to display the login page
+# --- 3) DEFINE LOGIN PAGE ---
 def login_page():
     st.title("Login Page")
     with st.form("login_form"):
@@ -24,7 +32,7 @@ def login_page():
 
     if submit_button:
         logging.info("Login attempt for user: %s", username)
-        
+
         # Define the payload for the Lambda function
         payload = {
             "action": "LOGIN_USER",
@@ -37,7 +45,7 @@ def login_page():
         # Invoke the Lambda function
         try:
             response = lambda_client.invoke(
-                FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',
+                FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',  # <-- Replace with your Lambda name
                 InvocationType='RequestResponse',
                 Payload=json.dumps(payload)
             )
@@ -62,25 +70,22 @@ def login_page():
             logging.warning("Invalid login attempt for user: %s", username)
             st.error("Invalid username or password")
 
-# Function to log out the user
+# --- 4) DEFINE LOGOUT ---
 def logout():
     logging.info("User logged out.")
     st.session_state.logged_in = False
     st.session_state.access_token = None
-    st.session_state.logout_trigger = not st.session_state.logout_trigger  # Toggle the trigger 
+    st.session_state.logout_trigger = not st.session_state.logout_trigger  # Toggle the trigger
 
-
+# --- 5) GET USER INFO ---
 def get_user_info(access_token):
-    # Define the payload for the Lambda function
     payload = {
         "action": "GET_USER",
         "token": access_token
     }
-
-    # Invoke the Lambda function
     try:
         response = lambda_client.invoke(
-            FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',
+            FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',  # <-- Replace with your Lambda name
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -101,4 +106,3 @@ def get_user_info(access_token):
     else:
         logging.warning("Failed to retrieve user info.")
         return None
-
