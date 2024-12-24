@@ -45,6 +45,7 @@ def get_chat_history(session_id):
     history = DynamoDBChatMessageHistory(
         table_name="SessionTable",
         session_id=session_id,
+        boto3_session=session
     )
     messages = [{"role": message.type, "content": message.content} for message in history.messages]
     logging.info(f"Chat history for session {session_id}: {messages}")
@@ -55,6 +56,7 @@ def add_user_message(session_id, message_content):
     history = DynamoDBChatMessageHistory(
         table_name="SessionTable",
         session_id=session_id,
+        boto3_session=session
     )
     history.add_user_message(message_content)
     logging.info(f"Added user message to session {session_id}: {message_content}")
@@ -64,6 +66,7 @@ def add_ai_message(session_id, message_content):
     history = DynamoDBChatMessageHistory(
         table_name="SessionTable",
         session_id=session_id,
+        boto3_session=session
     )
     history.add_ai_message(message_content)
     logging.info(f"Added AI message to session {session_id}: {message_content}")
