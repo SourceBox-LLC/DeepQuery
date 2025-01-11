@@ -35,6 +35,8 @@ def initialize_agent(model_id):
         return None
     else:
         logging.info("TAVILY_API_KEY successfully retrieved.")
+        # Optional: Log the length to ensure it's not empty without exposing the key
+        logging.info(f"TAVILY_API_KEY length: {len(api_key)}")
     
     try:
         # Initialize Bedrock model
