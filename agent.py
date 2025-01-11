@@ -27,31 +27,50 @@ def initialize_agent(model_id):
     """Initialize and return a ReAct agent with Bedrock and Tavily search capabilities."""
     memory = MemorySaver()
     
-    logger.info("Initializing Bedrock model...")
-    model = ChatBedrock(
-        model=model_id,
-        beta_use_converse_api=True,
-        streaming=True,
-        region_name=st.secrets["default"]["REGION"]
-    )
+    # Retrieve the TAVILY_API_KEY from secrets
+    api_key = st.secrets["default"].get("TAVILY_API_KEY")
+    if not api_key:
+        logging.error("TAVILY_API_KEY is missing from the secrets.")
+        st.error("Configuration Error: TAVILY_API_KEY is not set. Please contact the administrator.")
+        return None
+    else:
+        logging.info("TAVILY_API_KEY successfully retrieved.")
     
-    logger.info("Initializing Tavily search...")
-    api_key = st.secrets["default"]["TAVILY_API_KEY"]
-    search = TavilySearchResults(
-        max_results=2, 
-        tavily_api_key=api_key
-    )
-
-    pubmed_search = PubmedQueryRun()
+    try:
+        # Initialize Bedrock model
+        logging.info("Initializing Bedrock model...")
+        model = ChatBedrock(
+            model=model_id,
+            beta_use_converse_api=True,
+            streaming=True,
+            region_name=st.secrets["default"]["REGION"]
+        )
+        
+        # Initialize Tavily search
+        logging.info("Initializing Tavily search...")
+        search = TavilySearchResults(
+            max_results=2, 
+            tavily_api_key=api_key
+        )
+        
+        # Initialize PubMed search
+        pubmed_search = PubmedQueryRun()
+        
+        # Create agent executor with tools
+        logging.info("Creating agent executor...")
+        agent_executor = create_react_agent(
+            model,
+            tools=[search, create_image_tool, code_interpreter, pubmed_search],
+            checkpointer=memory
+        )
+        
+        logging.info("Agent executor initialized successfully.")
+        return agent_executor
     
-    logger.info("Creating agent...")
-    agent_executor = create_react_agent(
-        model,
-        tools=[search, create_image_tool, code_interpreter, pubmed_search],
-        checkpointer=memory
-    )
-    
-    return agent_executor
+    except Exception as e:
+        logging.error(f"Failed to initialize agent: {e}", exc_info=True)
+        st.error("An error occurred while initializing the agent.")
+        return None
 
 
 def query_agent(agent_executor, messages):
