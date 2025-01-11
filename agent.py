@@ -3,13 +3,10 @@ from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-
-from dotenv import load_dotenv
 import os
 import logging
 import json
 import re
-
 from custom_tools import create_image_tool, code_interpreter
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
@@ -23,9 +20,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+logger.info(f"DEBUG TAVILY_API_KEY: {st.secrets['default']['TAVILY_API_KEY']}")
+
+
 def initialize_agent(model_id):
     """Initialize and return a ReAct agent with Bedrock and Tavily search capabilities."""
-    load_dotenv()
     memory = MemorySaver()
     
     logger.info("Initializing Bedrock model...")
@@ -37,9 +36,10 @@ def initialize_agent(model_id):
     )
     
     logger.info("Initializing Tavily search...")
+    api_key = st.secrets["default"]["TAVILY_API_KEY"]
     search = TavilySearchResults(
         max_results=2, 
-        tavily_api_key=st.secrets["default"]["TAVILY_API_KEY"]
+        tavily_api_key=api_key
     )
 
     pubmed_search = PubmedQueryRun()

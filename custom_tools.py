@@ -1,6 +1,5 @@
 import replicate
 from langchain_core.tools import tool
-from dotenv import load_dotenv
 from langchain_core.tools import Tool
 from langchain_experimental.utilities import PythonREPL
 import os
@@ -11,10 +10,9 @@ import base64
 import pandas as pd
 import io
 import streamlit as st
-
 from langchain.tools import tool
 
-load_dotenv()
+
 
 @tool("create_image")
 def create_image_tool(prompt: str) -> str:

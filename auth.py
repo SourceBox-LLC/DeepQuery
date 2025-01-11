@@ -86,7 +86,7 @@ def get_user_info(access_token):
     }
     try:
         response = lambda_client.invoke(
-            FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',  # <-- Replace with your Lambda name
+            FunctionName='sb-user-auth-sbUserAuthFunction-zjl3761VSGKj',  # <-- Replace with your Lambda name
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )

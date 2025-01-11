@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import logging
-from dotenv import load_dotenv
 from agent import initialize_agent, query_agent
 from local_vector_store import create_vector_store, add_documents_to_store, search_documents
 from langchain_community.document_loaders import PDFPlumberLoader
@@ -11,9 +10,6 @@ from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, 
 from packs import get_current_packs, query_pinecone_pack  # Import the get_current_packs function
 import json
 import pandas as pd
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -39,8 +35,12 @@ if st.session_state.logged_in and 'user_info' not in st.session_state:
             logging.info(f"User Info: {user_info}")
         else:
             logging.warning("Failed to retrieve user info.")
+            # Force the user to re-login
+            st.session_state.logged_in = False
     else:
         logging.warning("Access token is not available to retrieve user info.")
+        # Force the user to re-login
+        st.session_state.logged_in = False
 
 
 # --- Helper Functions ---
@@ -56,6 +56,7 @@ def handle_clear_chat_history():
 
 # Function to display the main page
 def main_page():
+    
     logging.info(f"Access Token: {st.session_state.access_token}")
     st.sidebar.title("Options")
 
