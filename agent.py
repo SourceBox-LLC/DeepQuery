@@ -28,7 +28,7 @@ def initialize_agent(model_id):
     memory = MemorySaver()
     
     # Retrieve the TAVILY_API_KEY from secrets
-    api_key = st.secrets["default"].get("TAVILY_API_KEY")
+    api_key = st.secrets['default']['TAVILY_API_KEY']
     if not api_key:
         logging.error("TAVILY_API_KEY is missing from the secrets.")
         st.error("Configuration Error: TAVILY_API_KEY is not set. Please contact the administrator.")

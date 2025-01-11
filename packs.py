@@ -32,7 +32,7 @@ def get_current_packs():
     try:
         # Invoke the Lambda function
         response = lambda_client.invoke(
-            FunctionName='sb-user-auth-sbUserAuthFunction-3StRr85VyfEC',
+            FunctionName='sb-user-auth-sbUserAuthFunction-zjl3761VSGKj',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
