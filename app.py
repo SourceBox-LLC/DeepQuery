@@ -90,7 +90,8 @@ def main_page():
     
     on = st.sidebar.toggle("Visual Flow")
     if on:
-        st.write("Visual Flow activated!")
+        st.sidebar.page_link("https://boxflow.streamlit.app", label="Open Prompt Factory")
+
     
     # Select box for image gen or text gen
     media_gen_or_text_gen = st.sidebar.selectbox("Media Gen or Text Gen", ["Text Gen", "Media Gen"])
