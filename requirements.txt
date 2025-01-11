@@ -54,7 +54,7 @@ pillow==11.1.0
 propcache==0.2.1
 protobuf==5.29.3
 pyarrow==18.1.0
-pydantic==1.10.10
+pydantic==2.10.5
 pydantic-settings==2.7.1
 pydantic_core==2.27.2
 pydeck==0.9.1
