@@ -231,6 +231,10 @@ def main_page():
         
         st.sidebar.write(f"You selected: {selected_pack}")
 
+        pack_toggle = st.sidebar.toggle("Pack Manager")
+        if pack_toggle:
+            st.sidebar.page_link("https://packman.streamlit.app", label="Open Pack Manager")
+
     elif media_gen_or_text_gen == "Media Gen":
         # Display options for Media Gen
         # You can add different tools or options specific to Media Gen here
