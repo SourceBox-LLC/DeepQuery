@@ -36,10 +36,10 @@ def initialize_agent(model_id):
         return None
     else:
         logging.info("TAVILY_API_KEY successfully retrieved.")
-        # Optionally, log the length to verify it's not empty
+        # Log the length to ensure it's not empty without exposing the key
         logging.info(f"TAVILY_API_KEY length: {len(api_key)}")
     
-    # Set the API key as an environment variable
+    # Set the API key as an environment variable (if required by the library)
     os.environ["TAVILY_API_KEY"] = api_key
     
     try:

@@ -14,6 +14,10 @@ import pandas as pd
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# === Set AWS Credentials as Environment Variables ===
+os.environ["AWS_ACCESS_KEY_ID"] = st.secrets["default"]["ACCESS_KEY"]
+os.environ["AWS_SECRET_ACCESS_KEY"] = st.secrets["default"]["SECRET_KEY"]
+os.environ["AWS_DEFAULT_REGION"] = st.secrets["default"]["REGION"]
 
 # Initialize session state for login
 if 'logged_in' not in st.session_state:
