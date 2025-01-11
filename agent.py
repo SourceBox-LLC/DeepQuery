@@ -9,6 +9,7 @@ import json
 import re
 from custom_tools import create_image_tool, code_interpreter
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain.utilities.tavily_search import TavilySearchAPIWrapper
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
 
 import streamlit as st
@@ -28,15 +29,18 @@ def initialize_agent(model_id):
     memory = MemorySaver()
     
     # Retrieve the TAVILY_API_KEY from secrets
-    api_key = st.secrets['default']['TAVILY_API_KEY']
+    api_key = st.secrets['default'].get('TAVILY_API_KEY')
     if not api_key:
         logging.error("TAVILY_API_KEY is missing from the secrets.")
         st.error("Configuration Error: TAVILY_API_KEY is not set. Please contact the administrator.")
         return None
     else:
         logging.info("TAVILY_API_KEY successfully retrieved.")
-        # Optional: Log the length to ensure it's not empty without exposing the key
+        # Optionally, log the length to verify it's not empty
         logging.info(f"TAVILY_API_KEY length: {len(api_key)}")
+    
+    # Set the API key as an environment variable
+    os.environ["TAVILY_API_KEY"] = api_key
     
     try:
         # Initialize Bedrock model
@@ -48,12 +52,10 @@ def initialize_agent(model_id):
             region_name=st.secrets["default"]["REGION"]
         )
         
-        # Initialize Tavily search
+        # Initialize Tavily search without passing api_key directly
         logging.info("Initializing Tavily search...")
-        search = TavilySearchResults(
-            max_results=2, 
-            tavily_api_key=api_key
-        )
+        tavily_search = TavilySearchAPIWrapper()
+        search = TavilySearchResults(api_wrapper=tavily_search)
         
         # Initialize PubMed search
         pubmed_search = PubmedQueryRun()
