@@ -10,6 +10,12 @@ from dynamodb import create_dynamodb_table, get_chat_history, add_user_message, 
 from packs import get_current_packs, query_pinecone_pack  # Import the get_current_packs function
 import json
 import pandas as pd
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
+from test import call_sana, initialize_replicate_client
+from PIL import Image
+import requests
+from io import BytesIO
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -46,21 +52,8 @@ if st.session_state.logged_in and 'user_info' not in st.session_state:
         # Force the user to re-login
         st.session_state.logged_in = False
 
-
-# --- Helper Functions ---
-def handle_clear_chat_history():
-    """Callback function for the clear chat history button."""
-    if st.session_state.access_token:
-        user_id = str(st.session_state.user_info["id"])  # Get the user ID
-        if clear_chat_history(user_id):  # Use the imported clear_chat_history function
-            st.rerun()  # Refresh the page to show empty chat
-        else:
-            st.error("Failed to clear chat history")
-
-
 # Function to display the main page
 def main_page():
-    
     logging.info(f"Access Token: {st.session_state.access_token}")
     st.sidebar.title("Options")
 
@@ -88,13 +81,14 @@ def main_page():
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
-    on = st.sidebar.toggle("Visual Flow")
+    on = st.sidebar.toggle("Connected Apps/Services")
     if on:
         st.sidebar.page_link("https://boxflow.streamlit.app", label="Open Prompt Factory")
+        st.sidebar.page_link("https://packman.streamlit.app", label="Open Pack Manager")
 
     
     # Select box for image gen or text gen
-    media_gen_or_text_gen = st.sidebar.selectbox("Media Gen or Text Gen", ["Text Gen", "Media Gen"])
+    media_gen_or_text_gen = st.sidebar.selectbox("Media Gen or Text Gen", ["Text Gen", "Media Gen", "Sudo Search"])
     st.sidebar.write(f"You selected: {media_gen_or_text_gen}")
 
     # Conditional logic based on the selection
@@ -130,88 +124,90 @@ def main_page():
 
                 # Clean up the temporary file
                 os.remove(temp_file_path)
-            elif uploaded_file.type == "text/csv":
-                # Read CSV file
-                df = pd.read_csv(uploaded_file)
-                # Convert first 10 rows to string for display
-                preview = df.head(10).to_string()
-                file_content = f"CSV Preview (First 10 rows):\n{preview}"
+            else:
+                # Handle other file types (e.g., txt, csv, etc.)
+                if uploaded_file.type == "text/csv":
+                    # Read CSV file
+                    df = pd.read_csv(uploaded_file)
+                    # Convert first 10 rows to string for display
+                    preview = df.head(10).to_string()
+                    file_content = f"CSV Preview (First 10 rows):\n{preview}"
 
-                # Display the preview in the chat
-                with st.chat_message("assistant"):
-                    st.markdown("I've loaded your CSV file. Here are the first 10 rows:")
-                    st.dataframe(df.head(10))
-                    
-                    # Initialize session state for 'graph_data'
-                    if 'graph_data' not in st.session_state:
-                        st.session_state['graph_data'] = False
+                    # Display the preview in the chat
+                    with st.chat_message("assistant"):
+                        st.markdown("I've loaded your CSV file. Here are the first 10 rows:")
+                        st.dataframe(df.head(10))
+                        
+                        # Initialize session state for 'graph_data'
+                        if 'graph_data' not in st.session_state:
+                            st.session_state['graph_data'] = False
 
-                    # When the button is clicked, update session state
-                    if st.button("Graph Data"):
-                        st.session_state['graph_data'] = True
+                        # When the button is clicked, update session state
+                        if st.button("Graph Data"):
+                            st.session_state['graph_data'] = True
 
-                    # If 'graph_data' is True, display the chart options
-                    if st.session_state['graph_data']:
-                        option = st.selectbox(
-                            "Which type of chart would you like to display?",
-                            ("Area Chart", "Bar Chart", "Line Chart", "Scatter Chart"),
-                        )
-
-                        st.write("You selected:", option)
-
-                        # Get numerical columns only
-                        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-
-                        if numeric_cols.empty:
-                            st.error("No numerical columns found in the uploaded file.")
-                        else:
-                            # Unique key for each multiselect to avoid conflicts
-                            multiselect_key = f"{option.lower().replace(' ', '_')}_columns"
-
-                            selected_columns = st.multiselect(
-                                "Select columns to plot:",
-                                options=numeric_cols,
-                                default=numeric_cols[:3] if len(numeric_cols) > 0 else None,
-                                key=multiselect_key
+                        # If 'graph_data' is True, display the chart options
+                        if st.session_state['graph_data']:
+                            option = st.selectbox(
+                                "Which type of chart would you like to display?",
+                                ("Area Chart", "Bar Chart", "Line Chart", "Scatter Chart"),
                             )
 
-                            if selected_columns:
-                                st.subheader(f"{option}")
-                                if option == "Area Chart":
-                                    st.area_chart(data=df[selected_columns])
-                                elif option == "Bar Chart":
-                                    st.bar_chart(data=df[selected_columns])
-                                elif option == "Line Chart":
-                                    st.line_chart(data=df[selected_columns])
-                                elif option == "Scatter Chart":
-                                    # For scatter chart, we need to select two columns for x and y axes
-                                    if len(selected_columns) >= 2:
-                                        x_axis = st.selectbox("Select X-axis column:", options=selected_columns)
-                                        y_axis = st.selectbox(
-                                            "Select Y-axis column:",
-                                            options=[col for col in selected_columns if col != x_axis]
-                                        )
+                            st.write("You selected:", option)
 
-                                        # Create a scatter plot using Altair
-                                        import altair as alt
-                                        scatter_chart = alt.Chart(df).mark_circle(size=60).encode(
-                                            x=x_axis,
-                                            y=y_axis,
-                                            tooltip=selected_columns
-                                        ).interactive()
+                            # Get numerical columns only
+                            numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
 
-                                        st.altair_chart(scatter_chart, use_container_width=True)
-                                    else:
-                                        st.warning("Please select at least two columns for scatter plot.")
+                            if numeric_cols.empty:
+                                st.error("No numerical columns found in the uploaded file.")
                             else:
-                                  st.warning("Please select at least one column to plot.")
+                                # Unique key for each multiselect to avoid conflicts
+                                multiselect_key = f"{option.lower().replace(' ', '_')}_columns"
 
-                        # Reset button to clear the session state
-                        if st.button("Reset"):
-                            st.session_state['graph_data'] = False
-            else:
-                # Decode other text-based files
-                file_content = uploaded_file.read().decode('utf-8')
+                                selected_columns = st.multiselect(
+                                    "Select columns to plot:",
+                                    options=numeric_cols,
+                                    default=numeric_cols[:3] if len(numeric_cols) > 0 else None,
+                                    key=multiselect_key
+                                )
+
+                                if selected_columns:
+                                    st.subheader(f"{option}")
+                                    if option == "Area Chart":
+                                        st.area_chart(data=df[selected_columns])
+                                    elif option == "Bar Chart":
+                                        st.bar_chart(data=df[selected_columns])
+                                    elif option == "Line Chart":
+                                        st.line_chart(data=df[selected_columns])
+                                    elif option == "Scatter Chart":
+                                        # For scatter chart, we need to select two columns for x and y axes
+                                        if len(selected_columns) >= 2:
+                                            x_axis = st.selectbox("Select X-axis column:", options=selected_columns)
+                                            y_axis = st.selectbox(
+                                                "Select Y-axis column:",
+                                                options=[col for col in selected_columns if col != x_axis]
+                                            )
+
+                                            # Create a scatter plot using Altair
+                                            import altair as alt
+                                            scatter_chart = alt.Chart(df).mark_circle(size=60).encode(
+                                                x=x_axis,
+                                                y=y_axis,
+                                                tooltip=selected_columns
+                                            ).interactive()
+
+                                            st.altair_chart(scatter_chart, use_container_width=True)
+                                        else:
+                                            st.warning("Please select at least two columns for scatter plot.")
+                                else:
+                                      st.warning("Please select at least one column to plot.")
+
+                                # Reset button to clear the session state
+                                if st.button("Reset"):
+                                    st.session_state['graph_data'] = False
+                else:
+                    # Decode other text-based files
+                    file_content = uploaded_file.read().decode('utf-8')
 
             # Add the uploaded file content to the vector store
             add_documents_to_store(vector_store, [(file_id, file_content, metadata)])
@@ -231,21 +227,73 @@ def main_page():
         
         st.sidebar.write(f"You selected: {selected_pack}")
 
-        pack_toggle = st.sidebar.toggle("Pack Manager")
-        if pack_toggle:
-            st.sidebar.page_link("https://packman.streamlit.app", label="Open Pack Manager")
-
     elif media_gen_or_text_gen == "Media Gen":
         # Display options for Media Gen
-        # You can add different tools or options specific to Media Gen here
         st.sidebar.write("Media Gen options will be displayed here.")
         # Example: Add a different set of models or tools
-        media_model_options = ["DALL-E", "Stable Diffusion"]
+        media_model_options = ["Nvidia/Sana"]
         selected_media_model = st.sidebar.selectbox("Media Model", media_model_options)
         st.sidebar.write(f"You selected: {selected_media_model}")
 
-    # Common options for both Text Gen and Media Gen
-    st.sidebar.button("Clear Chat History", on_click=handle_clear_chat_history)
+        if selected_media_model == "Nvidia/Sana":
+            # Model variant selection (if applicable)
+            # If model variants are needed, add another selectbox here
+            # For now, we'll keep it static as per your requirement
+
+            # Width and Height selection
+            width_height = st.sidebar.selectbox("Width/Height", ["1024/1024"])
+            guidance_scale = st.sidebar.slider("Guidance Scale", 1, 10, 5)
+            num_inference_steps = st.sidebar.slider("Number of Inference Steps", 1, 100, 18)
+            
+            # Define a mapping from width_height to width and height
+            variant_mapping = {
+                "1024/1024": (1024, 1024),
+                "1600M-1024px": (1600, 1024),
+                "1600M-512px": (1600, 512)
+            }
+
+            # Get width and height based on the selected width_height
+            width, height = variant_mapping.get(width_height, (1024, 1024))  # Defaults to (1024, 1024) if variant not found
+
+            if prompt := st.chat_input("Enter your prompt here."):
+                logging.info(f"User prompt: {prompt}")
+                
+                # Initialize the Replicate client
+                replicate_client = initialize_replicate_client()
+                
+                # Call the function with all required arguments
+                output = call_sana(
+                    prompt=prompt,
+                    replicate_client=replicate_client,
+                    width=width,
+                    height=height,
+                    model_variant=selected_media_model,  # Use the selected model variant
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=num_inference_steps
+                )
+                
+                # Verify the output type
+                if isinstance(output, str):
+                    st.image(output, caption="Generated Image")
+                else:
+                    logging.error(f"Unexpected output type: {type(output)}")
+                    st.error("Failed to generate image due to unexpected output type.")
+
+    elif media_gen_or_text_gen == "Sudo Search":
+
+        st.sidebar.write("Sudo Search options will be displayed here.")
+
+        logging.info("Initializing Tavily search...")
+        tavily_search = TavilySearchAPIWrapper()
+        search = TavilySearchResults(api_wrapper=tavily_search)
+        
+        if sudo_query := st.chat_input("Enter your sudo search here."):
+            logging.info(f"Sudo Search query: {sudo_query}")
+            search_results = search.run(sudo_query)
+            st.write(search_results)
+
+    # Common options for both Text Gen, Media Gen, and Sudo Search
+    st.sidebar.button("Clear Chat History", on_click=clear_chat_history)
     st.sidebar.button("Logout", on_click=logout)
 
     # Initialize the agent
@@ -257,7 +305,6 @@ def main_page():
         agent_executor = initialize_agent(model_id=model_id)
     elif media_gen_or_text_gen == "Media Gen" and selected_media_model in media_model_options:
         # Initialize media generation agent or tools
-        # Example: Initialize a different agent or tool for media generation
         pass
     else:
         st.error("Selected model is not supported.")
@@ -346,7 +393,6 @@ def main_page():
             st.write("Here are the details of the tool usage:")
             for log in tool_logs:
                 st.text(log)
-
 
 # Display the appropriate page based on login state
 if st.session_state.logged_in:
