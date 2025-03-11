@@ -64,6 +64,8 @@ def login_page():
         if response_payload.get('statusCode') == 200:
             st.session_state.logged_in = True
             st.session_state.access_token = json.loads(response_payload['body'])['token']
+            # Hide the login page after successful login
+            st.session_state.show_login_page = False
             logging.info("User %s logged in successfully.", username)
             st.success("Logged in successfully!")
             st.rerun()
