@@ -2,8 +2,10 @@ import boto3
 import json
 import logging
 import streamlit as st
+import os
+import requests
 
-# Initialize a session using Boto3
+# Initialize a session using Boto3 for remaining Lambda functions
 ACCESS_KEY = st.secrets["default"]["ACCESS_KEY"]
 SECRET_KEY = st.secrets["default"]["SECRET_KEY"]
 REGION = st.secrets["default"]["REGION"]
@@ -17,49 +19,50 @@ session = boto3.Session(
     region_name=REGION
 )
 
+# API URL
+API_URL = os.getenv('API_URL', 'http://localhost:5000')
 
-# Create a Lambda client
+# Create a Lambda client for pinecone queries
 lambda_client = session.client('lambda')
 
 # Function to fetch current packs
 def get_current_packs():
-    # Define the payload for the Lambda function
-    payload = {
-        "action": "LIST_USER_PACKS",
-        "user_id": 2  # TODO: Replace with actual user_id from session
-    }
-
+    # Check if user is logged in and access token is available
+    if not st.session_state.logged_in or not st.session_state.access_token:
+        logging.warning("User not logged in or access token not available")
+        return []
+    
+    logging.info(f"Getting packs for user: {st.session_state.get('username', 'Unknown')}")
+    logging.info(f"Access token: {st.session_state.access_token[:10]}... (truncated)")
+    
     try:
-        # Invoke the Lambda function
-        response = lambda_client.invoke(
-            FunctionName='sb-user-auth-sbUserAuthFunction-zjl3761VSGKj',
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload)
-        )
+        # Make a request to the API to get user packs
+        headers = {'Authorization': f'Bearer {st.session_state.access_token}'}
+        logging.info(f"Making request to {API_URL}/user/packs")
         
-        # Read and parse the response
-        response_payload = json.loads(response['Payload'].read())
+        response = requests.get(f'{API_URL}/user/packs', headers=headers)
+        logging.info(f"Pack API response status: {response.status_code}")
         
-        if response_payload.get('statusCode') == 200:
-            # Parse the body string into a dictionary
-            body = json.loads(response_payload['body'])
+        if response.status_code == 200:
+            packs = response.json()
+            logging.info(f"Retrieved {len(packs)} packs")
             
             # Transform the data to match the expected format
-            packs = []
-            for pack in body['packs']:
-                packs.append({
+            formatted_packs = []
+            for pack in packs:
+                formatted_packs.append({
                     'Pack Name': pack['pack_name'],
                     'Description': pack['description'],
-                    'Date Created': pack['date_created'].split('T')[0],
-                    'Pack ID': pack['id']  # Add pack_id to the returned data
+                    'Date Created': pack['date_created'].split('T')[0] if 'T' in pack['date_created'] else pack['date_created'],
+                    'Pack ID': pack['id']
                 })
-            return packs
+            return formatted_packs
         else:
-            logging.error("Failed to fetch packs: %s", response_payload)
+            logging.error(f"Failed to fetch packs: {response.text}")
             return []
             
     except Exception as e:
-        logging.error("Error fetching packs: %s", e)
+        logging.error(f"Error fetching packs: {e}")
         return []
 
 

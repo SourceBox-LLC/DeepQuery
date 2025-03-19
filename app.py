@@ -5,7 +5,7 @@ from agent import initialize_agent, query_agent
 from local_vector_store import create_vector_store, add_documents_to_store, search_documents
 from langchain_community.document_loaders import PDFPlumberLoader
 import tempfile
-from auth import login_page, logout, get_user_info  # Import the login and logout functions
+from auth import login_page, logout, get_user_info, register_page, check_token  # Import the authentication functions
 from dynamodb import (
     create_dynamodb_table,
     get_chat_history,
@@ -30,6 +30,179 @@ os.environ["AWS_ACCESS_KEY_ID"] = st.secrets["default"]["ACCESS_KEY"]
 os.environ["AWS_SECRET_ACCESS_KEY"] = st.secrets["default"]["SECRET_KEY"]
 os.environ["AWS_DEFAULT_REGION"] = st.secrets["default"]["REGION"]
 
+# === Immediately inject localStorage script for persistent login ===
+# This needs to be as early as possible in the app
+def inject_localStorage_script():
+    st.markdown("""
+    <script>
+    // Function to save auth data to localStorage and cookies
+    function saveAuthData(token, username, userId) {
+        console.log("Saving auth data to localStorage and cookies");
+        // Save to localStorage
+        localStorage.setItem("deepquery_token", token);
+        localStorage.setItem("deepquery_username", username);
+        localStorage.setItem("deepquery_user_id", userId);
+        
+        // Save to cookies (for cross-page persistence)
+        document.cookie = `deepquery_token=${token}; path=/; max-age=604800; SameSite=Lax`; // 7 days
+        document.cookie = `deepquery_username=${username}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `deepquery_user_id=${userId}; path=/; max-age=604800; SameSite=Lax`;
+        
+        // Force reload with query parameters to pass token back to Streamlit
+        const url = new URL(window.location.href);
+        url.searchParams.set("token", token);
+        url.searchParams.set("username", username);
+        url.searchParams.set("user_id", userId);
+        window.location.href = url.toString();
+    }
+    
+    // Function to check localStorage for auth data
+    function checkAuthData() {
+        console.log("Checking for auth data in localStorage");
+        const token = localStorage.getItem("deepquery_token");
+        const username = localStorage.getItem("deepquery_username");
+        const userId = localStorage.getItem("deepquery_user_id");
+        
+        if (token && username && userId) {
+            console.log("Found auth data in localStorage");
+            
+            // Check if we need to set query parameters
+            const url = new URL(window.location.href);
+            if (!url.searchParams.has("token")) {
+                console.log("Adding auth data to URL parameters");
+                url.searchParams.set("token", token);
+                url.searchParams.set("username", username);
+                url.searchParams.set("user_id", userId);
+                window.location.href = url.toString();
+            }
+        } else {
+            // Try to get from cookies as fallback
+            console.log("No auth data in localStorage, checking cookies");
+            const getCookie = (name) => {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            };
+            
+            const cookieToken = getCookie("deepquery_token");
+            const cookieUsername = getCookie("deepquery_username");
+            const cookieUserId = getCookie("deepquery_user_id");
+            
+            if (cookieToken && cookieUsername && cookieUserId) {
+                console.log("Found auth data in cookies");
+                // Restore to localStorage
+                localStorage.setItem("deepquery_token", cookieToken);
+                localStorage.setItem("deepquery_username", cookieUsername);
+                localStorage.setItem("deepquery_user_id", cookieUserId);
+                
+                // Add to URL if needed
+                const url = new URL(window.location.href);
+                if (!url.searchParams.has("token")) {
+                    url.searchParams.set("token", cookieToken);
+                    url.searchParams.set("username", cookieUsername);
+                    url.searchParams.set("user_id", cookieUserId);
+                    window.location.href = url.toString();
+                }
+            }
+        }
+    }
+    
+    // Function to clear auth data
+    function clearAuthData() {
+        console.log("Clearing auth data from localStorage and cookies");
+        // Clear localStorage
+        localStorage.removeItem("deepquery_token");
+        localStorage.removeItem("deepquery_username");
+        localStorage.removeItem("deepquery_user_id");
+        
+        // Clear cookies
+        document.cookie = "deepquery_token=; path=/; max-age=0";
+        document.cookie = "deepquery_username=; path=/; max-age=0";
+        document.cookie = "deepquery_user_id=; path=/; max-age=0";
+        
+        // Reload page without parameters
+        window.location.href = window.location.pathname;
+    }
+    
+    // Execute on page load
+    document.addEventListener("DOMContentLoaded", function() {
+        checkAuthData();
+        
+        // Expose functions to window for Streamlit callbacks
+        window.saveAuthData = saveAuthData;
+        window.clearAuthData = clearAuthData;
+    });
+    
+    // Run immediately as well (don't wait for DOM content loaded)
+    // This helps with faster auth detection
+    checkAuthData();
+    </script>
+    """, unsafe_allow_html=True)
+
+# Immediately inject the script for persistent login
+inject_localStorage_script()
+
+# Save auth data to browser
+def save_auth_data_to_browser():
+    if st.session_state.logged_in and st.session_state.access_token:
+        logging.info("Saving auth data to browser storage")
+        # Add more safety checks
+        token = st.session_state.access_token
+        username = st.session_state.username or ""
+        user_id = st.session_state.user_id or ""
+        
+        if not token or not username or not user_id:
+            logging.warning("Missing token, username, or user_id - can't save to browser")
+            return
+            
+        # Escape any quotes to prevent JS injection issues
+        token = token.replace('"', '\\"')
+        username = username.replace('"', '\\"')
+        user_id = str(user_id).replace('"', '\\"')
+        
+        js_code = f"""
+        <script>
+        console.log("Executing saveAuthData from Streamlit");
+        try {{
+            if (typeof window.saveAuthData === 'function') {{
+                window.saveAuthData(
+                    "{token}", 
+                    "{username}", 
+                    "{user_id}"
+                );
+                console.log("Auth data saved successfully");
+            }} else {{
+                console.error("saveAuthData function not available - auth persistence may not work");
+                // Try to directly set localStorage and cookies as fallback
+                localStorage.setItem("deepquery_token", "{token}");
+                localStorage.setItem("deepquery_username", "{username}");
+                localStorage.setItem("deepquery_user_id", "{user_id}");
+                document.cookie = `deepquery_token=${token}; path=/; max-age=604800; SameSite=Lax`;
+                document.cookie = `deepquery_username=${username}; path=/; max-age=604800; SameSite=Lax`;
+                document.cookie = `deepquery_user_id=${user_id}; path=/; max-age=604800; SameSite=Lax`;
+            }}
+        }} catch (e) {{
+            console.error("Error saving auth data:", e);
+        }}
+        </script>
+        """
+        st.markdown(js_code, unsafe_allow_html=True)
+        logging.info("Auth data save script injected")
+
+# Clear auth data from browser on logout
+def clear_auth_data_from_browser():
+    js_code = """
+    <script>
+    if (typeof window.clearAuthData === 'function') {
+        window.clearAuthData();
+    } else {
+        console.error("clearAuthData function not available");
+    }
+    </script>
+    """
+    st.markdown(js_code, unsafe_allow_html=True)
+
 # Initialize session state variables
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -42,9 +215,24 @@ if "logout_trigger" not in st.session_state:
 
 if "show_login_page" not in st.session_state:
     st.session_state.show_login_page = False
+    
+if "register_trigger" not in st.session_state:
+    st.session_state.register_trigger = False
+    
+if "username" not in st.session_state:
+    st.session_state.username = None
+    
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    
+if "clear_chat_trigger" not in st.session_state:
+    st.session_state.clear_chat_trigger = False
+    
+if "should_save_auth" not in st.session_state:
+    st.session_state.should_save_auth = False
 
 # --- Helper Functions ---
 def handle_clear_chat_history():
@@ -53,19 +241,19 @@ def handle_clear_chat_history():
         user_id = str(st.session_state.user_info["id"])  # Get the user ID
         if clear_chat_history(user_id):  # Use the imported clear_chat_history function
             st.session_state.messages = []  # Also clear the session state messages
-            st.rerun()  # Refresh the page to show empty chat
+            st.session_state.clear_chat_trigger = True  # Set trigger for rerun
         else:
             st.error("Failed to clear chat history")
     else:
         # For non-logged in users, just clear the session state messages
         if "messages" in st.session_state:
             st.session_state.messages = []
-        st.rerun()
+            st.session_state.clear_chat_trigger = True  # Set trigger for rerun
 
 def toggle_login_page():
     """Toggle the login page display"""
     st.session_state.show_login_page = not st.session_state.show_login_page
-    st.rerun()
+    # No st.rerun() needed - Streamlit will rerun automatically when session state changes
 
 def load_user_chat_history():
     """Load the user's chat history from DynamoDB into session state"""
@@ -88,19 +276,54 @@ def custom_logout():
     if "user_info" in st.session_state:
         del st.session_state.user_info  # Remove user info from session
     st.session_state.logout_trigger = not st.session_state.logout_trigger  # Toggle the trigger
-    st.rerun()  # Force a rerun to update the UI
+    clear_auth_data_from_browser()  # Clear browser storage
+    # No st.rerun() needed - clearing browser storage will force a page reload
 
 # Function to display the main page
 def main_page():
+    # Handle any pending rerun triggers
+    if st.session_state.clear_chat_trigger:
+        st.session_state.clear_chat_trigger = False
+    
+    # Debug logging to help diagnose login state    
+    logging.info(f"Login state: logged_in={st.session_state.logged_in}, username={st.session_state.username}")
+    if st.session_state.logged_in:
+        logging.info(f"User info: {st.session_state.get('user_info', 'Not set')}")
+        
+        # If logged in but user_info is missing, try to fetch it
+        if 'user_info' not in st.session_state and st.session_state.access_token:
+            logging.info("User logged in but user_info not found. Attempting to fetch it.")
+            user_info = get_user_info(st.session_state.access_token)
+            if user_info:
+                st.session_state.user_info = user_info
+                logging.info(f"User info fetched successfully: {user_info}")
+                st.session_state.should_save_auth = True  # Ensure we save auth data
+            else:
+                logging.error("Failed to fetch user_info despite having access token")
+                # Token may be expired, log the user out
+                st.warning("Your session has expired. Please log in again.")
+                custom_logout()
+                st.stop()  # Stop execution to avoid showing logged-in content
+                
     st.title("DeepQuery")
     st.subheader("Dive Deeper!")
+    
+    # If user is logged in but we don't have browser storage set up yet, do it now
+    if st.session_state.logged_in and st.session_state.access_token:
+        save_auth_data_to_browser()
 
     # Set up the sidebar
     st.sidebar.title("Options")
 
     # Login/Logout button in sidebar
     if st.session_state.logged_in:
-        st.sidebar.write(f"Logged in as: {st.session_state.user_info.get('username', 'User')}")
+        # Display user information in sidebar
+        if "user_info" in st.session_state:
+            display_name = st.session_state.user_info.get('username', st.session_state.username or 'User')
+            st.sidebar.write(f"Logged in as: {display_name}")
+        else:
+            st.sidebar.write(f"Logged in as: {st.session_state.username or 'User'}")
+        
         st.sidebar.button("Logout", on_click=custom_logout)  # Use custom logout function
     else:
         st.sidebar.button("Login", on_click=toggle_login_page)
@@ -413,19 +636,58 @@ def main_page():
 
 
 # Main app flow
-if st.session_state.show_login_page and not st.session_state.logged_in:
+# Check for token in query parameters (which would be set by our JavaScript)
+auth_data = check_token()
+if auth_data and not st.session_state.logged_in:
+    # We have auth data from cookies/localStorage but aren't logged in
+    # Verify the token and auto-login the user
+    token = auth_data['token']
+    logging.info(f"Attempting auto-login with token from query params: {token[:10]}...")
+    
+    try:
+        user_info = get_user_info(token)
+        if user_info:
+            # Set session state for logged in user
+            st.session_state.logged_in = True
+            st.session_state.access_token = token
+            st.session_state.username = auth_data['username']
+            st.session_state.user_id = auth_data['user_id']
+            st.session_state.user_info = user_info
+            # Load user's chat history
+            load_user_chat_history()
+            logging.info(f"Auto-login successful for user: {auth_data['username']}")
+            
+            # Also save to browser storage to ensure it's properly stored
+            # This will happen after page rerun, but ensures persistence
+            st.session_state.should_save_auth = True
+        else:
+            # Token is invalid, clear it
+            logging.error("Failed to get user info with token from query params")
+            clear_auth_data_from_browser()
+            logging.warning("Invalid token found in cookies, cleared")
+    except Exception as e:
+        logging.error(f"Error during auto-login: {e}")
+        clear_auth_data_from_browser()
+
+# After login, we might need to save auth data to browser
+if st.session_state.logged_in and st.session_state.get("should_save_auth", False):
+    save_auth_data_to_browser()
+    st.session_state.should_save_auth = False
+
+if st.session_state.register_trigger:
+    # Show registration page when register_trigger is True
+    register_page()
+elif st.session_state.show_login_page and not st.session_state.logged_in:
     # Only show login page if explicitly requested AND user is not logged in
     login_page()
     
     # Add a back button to return to main page
     if st.button("Back to Main Page"):
         st.session_state.show_login_page = False
-        st.rerun()
 else:
     # Auto-hide the login page if user logged in successfully
     if st.session_state.logged_in and st.session_state.show_login_page:
         st.session_state.show_login_page = False
-        st.rerun()
         
     # Show main page by default
     if st.session_state.logged_in:
@@ -438,6 +700,8 @@ else:
                 if user_info:
                     st.session_state.user_info = user_info
                     logging.info(f"User Info: {user_info}")
+                    # Save auth data to browser for persistent login
+                    save_auth_data_to_browser()
                     # Load chat history after setting user info
                     load_user_chat_history()
                 else:
