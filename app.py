@@ -3,7 +3,7 @@ import os
 import logging
 from agent import initialize_agent, query_agent
 from local_vector_store import create_vector_store, add_documents_to_store, search_documents
-from langchain_community.document_loaders import PDFPlumberLoader
+from langchain_community.document_loaders import PDFPlumberLoader, Docx2txtLoader
 from standard_chat import query_chat
 import tempfile
 from auth import login_page, logout, get_user_info, register_page, check_token  # Import the authentication functions
@@ -723,13 +723,21 @@ def main_page():
             file_id = uploaded_file.name
             metadata = {"type": uploaded_file.type}
             if uploaded_file.type == "application/pdf":
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-                    temp_file.write(uploaded_file.read())
-                    temp_file_path = temp_file.name
-                loader = PDFPlumberLoader(temp_file_path)
-                documents = loader.load()
-                file_content = "\n".join(doc.page_content for doc in documents)
-                os.remove(temp_file_path)
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                        temp_file.write(uploaded_file.read())
+                        temp_file_path = temp_file.name
+                    
+                    # Make sure this is identical to your working Agent code
+                    loader = PDFPlumberLoader(temp_file_path)
+                    documents = loader.load()
+                    file_content = "\n".join(doc.page_content for doc in documents)
+                    os.remove(temp_file_path)
+                    st.sidebar.success(f"Successfully extracted content from {file_id}")
+                except Exception as e:
+                    st.sidebar.error(f"Error extracting content from PDF file: {str(e)}")
+                    logging.error(f"PDF processing error: {str(e)}")
+                    file_content = f"Error processing PDF file {file_id}: {str(e)}"
             elif uploaded_file.type == "text/csv":
                 df = pd.read_csv(uploaded_file)
                 preview = df.head(10).to_string()
@@ -788,8 +796,55 @@ def main_page():
                                 st.warning("Please select at least one column to plot.")
                             if st.button("Reset"):
                                 st.session_state["graph_data"] = False
+            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or "docx" in uploaded_file.name.lower():
+                # Handle DOCX files using Langchain's loader
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_file:
+                        temp_file.write(uploaded_file.read())
+                        temp_file_path = temp_file.name
+                    
+                    # Use Langchain's Docx2txtLoader instead of direct docx2txt
+                    loader = Docx2txtLoader(temp_file_path)
+                    documents = loader.load()
+                    file_content = "\n".join(doc.page_content for doc in documents)
+                    os.remove(temp_file_path)
+                    st.sidebar.success(f"Successfully extracted content from {file_id}")
+                except Exception as e:
+                    st.sidebar.error(f"Error extracting content from DOCX file: {str(e)}")
+                    file_content = f"Error processing DOCX file {file_id}: {str(e)}"
             else:
-                file_content = uploaded_file.read().decode("utf-8")
+                # More robust file content handling for other file types
+                try:
+                    # Try UTF-8 decoding first
+                    file_content = uploaded_file.read().decode("utf-8")
+                except UnicodeDecodeError:
+                    # If UTF-8 fails, try to handle it as binary
+                    try:
+                        # Reset file pointer
+                        uploaded_file.seek(0)
+                        
+                        # For Word documents trying an alternative approach
+                        if "doc" in uploaded_file.name.lower() and not "docx" in uploaded_file.name.lower():
+                            try:
+                                import textract
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as temp_file:
+                                    temp_file.write(uploaded_file.getvalue())
+                                    temp_file_path = temp_file.name
+                                file_content = textract.process(temp_file_path).decode('utf-8')
+                                os.remove(temp_file_path)
+                                st.sidebar.success(f"Successfully extracted content from {file_id}")
+                            except Exception as e:
+                                file_size = len(uploaded_file.getvalue())
+                                file_content = f"Binary file: {file_id}, Size: {file_size} bytes. Could not extract content."
+                                st.sidebar.warning(f"Could not extract text from {file_id}. Please convert to PDF or DOCX format for better results.")
+                        else:
+                            # For other binary files, create a summary instead of failing
+                            file_size = len(uploaded_file.getvalue())
+                            file_content = f"Binary file: {file_id}, Size: {file_size} bytes. Could not extract content."
+                            st.sidebar.warning(f"Note: {file_id} appears to be a binary file or uses a non-UTF-8 encoding. Limited context extraction will be available.")
+                    except Exception as e:
+                        st.sidebar.error(f"Error processing file: {str(e)}")
+                        file_content = f"Error processing file {file_id}: {str(e)}"
             add_documents_to_store(vector_store, [(file_id, file_content, metadata)])
             st.sidebar.success("File uploaded and embedded successfully!")
         if st.session_state.logged_in:
@@ -824,13 +879,21 @@ def main_page():
             file_id = uploaded_file.name
             metadata = {"type": uploaded_file.type}
             if uploaded_file.type == "application/pdf":
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-                    temp_file.write(uploaded_file.read())
-                    temp_file_path = temp_file.name
-                loader = PDFPlumberLoader(temp_file_path)
-                documents = loader.load()
-                file_content = "\n".join(doc.page_content for doc in documents)
-                os.remove(temp_file_path)
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                        temp_file.write(uploaded_file.read())
+                        temp_file_path = temp_file.name
+                    
+                    # Make sure this is identical to your working Agent code
+                    loader = PDFPlumberLoader(temp_file_path)
+                    documents = loader.load()
+                    file_content = "\n".join(doc.page_content for doc in documents)
+                    os.remove(temp_file_path)
+                    st.sidebar.success(f"Successfully extracted content from {file_id}")
+                except Exception as e:
+                    st.sidebar.error(f"Error extracting content from PDF file: {str(e)}")
+                    logging.error(f"PDF processing error: {str(e)}")
+                    file_content = f"Error processing PDF file {file_id}: {str(e)}"
             elif uploaded_file.type == "text/csv":
                 df = pd.read_csv(uploaded_file)
                 preview = df.head(10).to_string()
@@ -889,8 +952,55 @@ def main_page():
                                 st.warning("Please select at least one column to plot.")
                             if st.button("Reset"):
                                 st.session_state["graph_data"] = False
+            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or "docx" in uploaded_file.name.lower():
+                # Handle DOCX files using Langchain's loader
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_file:
+                        temp_file.write(uploaded_file.read())
+                        temp_file_path = temp_file.name
+                    
+                    # Use Langchain's Docx2txtLoader instead of direct docx2txt
+                    loader = Docx2txtLoader(temp_file_path)
+                    documents = loader.load()
+                    file_content = "\n".join(doc.page_content for doc in documents)
+                    os.remove(temp_file_path)
+                    st.sidebar.success(f"Successfully extracted content from {file_id}")
+                except Exception as e:
+                    st.sidebar.error(f"Error extracting content from DOCX file: {str(e)}")
+                    file_content = f"Error processing DOCX file {file_id}: {str(e)}"
             else:
-                file_content = uploaded_file.read().decode("utf-8")
+                # More robust file content handling for other file types
+                try:
+                    # Try UTF-8 decoding first
+                    file_content = uploaded_file.read().decode("utf-8")
+                except UnicodeDecodeError:
+                    # If UTF-8 fails, try to handle it as binary
+                    try:
+                        # Reset file pointer
+                        uploaded_file.seek(0)
+                        
+                        # For Word documents trying an alternative approach
+                        if "doc" in uploaded_file.name.lower() and not "docx" in uploaded_file.name.lower():
+                            try:
+                                import textract
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as temp_file:
+                                    temp_file.write(uploaded_file.getvalue())
+                                    temp_file_path = temp_file.name
+                                file_content = textract.process(temp_file_path).decode('utf-8')
+                                os.remove(temp_file_path)
+                                st.sidebar.success(f"Successfully extracted content from {file_id}")
+                            except Exception as e:
+                                file_size = len(uploaded_file.getvalue())
+                                file_content = f"Binary file: {file_id}, Size: {file_size} bytes. Could not extract content."
+                                st.sidebar.warning(f"Could not extract text from {file_id}. Please convert to PDF or DOCX format for better results.")
+                        else:
+                            # For other binary files, create a summary instead of failing
+                            file_size = len(uploaded_file.getvalue())
+                            file_content = f"Binary file: {file_id}, Size: {file_size} bytes. Could not extract content."
+                            st.sidebar.warning(f"Note: {file_id} appears to be a binary file or uses a non-UTF-8 encoding. Limited context extraction will be available.")
+                    except Exception as e:
+                        st.sidebar.error(f"Error processing file: {str(e)}")
+                        file_content = f"Error processing file {file_id}: {str(e)}"
             add_documents_to_store(vector_store, [(file_id, file_content, metadata)])
             st.sidebar.success("File uploaded and embedded successfully!")
         

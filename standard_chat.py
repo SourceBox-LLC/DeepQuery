@@ -4,8 +4,8 @@ from langchain_core.prompts import PromptTemplate
 import os
 import streamlit as st
 
-# Use the API token from Streamlit secrets instead of hardcoding
-os.environ["REPLICATE_API_TOKEN"] = st.secrets["REPLICATE_API_TOKEN"]
+# Use the API token from the default section of Streamlit secrets
+os.environ["REPLICATE_API_TOKEN"] = st.secrets["default"]["REPLICATE_API_TOKEN"]
 
 def query_chat(query, model_id):
     llm = Replicate(
