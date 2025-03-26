@@ -672,7 +672,7 @@ def main_page():
     if st.session_state.logged_in and st.session_state.access_token:
         save_auth_data_to_browser()
 
-    st.sidebar.title("Options")
+    st.sidebar.image("images/logo.jpg", width=500)
     if st.session_state.logged_in:
         if "user_info" in st.session_state:
             display_name = st.session_state.user_info.get('username', st.session_state.username or 'User')
